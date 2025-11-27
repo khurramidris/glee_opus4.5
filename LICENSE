@@ -1,0 +1,316 @@
+MIT License
+
+Copyright (c) 2024 Glee Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+---
+
+## Complete Build & Run Instructions
+
+### Step 1: Create Project Structure
+
+```bash
+# Create root directory
+mkdir glee && cd glee
+
+# Create all directories
+mkdir -p apps/desktop/src-tauri/{src,migrations,capabilities,resources}
+mkdir -p apps/desktop/src/{components,hooks,lib,stores,types,styles}
+mkdir -p apps/desktop/src/components/{ui,layout,chat,character,persona,conversation,lorebook,settings,onboarding}
+mkdir -p resources/{characters,prompts}
+mkdir -p scripts
+mkdir -p docs
+```
+
+### Step 2: Copy All Files
+
+Copy all files from Parts 1-4 into their respective locations:
+
+**Part 1:** Configuration files
+- Root configs (`Cargo.toml`, `package.json`, `.gitignore`, etc.)
+- Desktop app configs (`apps/desktop/` - `package.json`, `vite.config.ts`, etc.)
+- Tauri configs (`apps/desktop/src-tauri/` - `Cargo.toml`, `tauri.conf.json`, etc.)
+- Migration (`apps/desktop/src-tauri/migrations/001_initial_schema.sql`)
+- Global CSS (`apps/desktop/src/styles/globals.css`)
+
+**Part 2A:** Rust core
+- `apps/desktop/src-tauri/src/main.rs`
+- `apps/desktop/src-tauri/src/lib.rs`
+- `apps/desktop/src-tauri/src/error.rs`
+- `apps/desktop/src-tauri/src/entities.rs`
+- `apps/desktop/src-tauri/src/database.rs`
+- `apps/desktop/src-tauri/src/repositories.rs`
+- `apps/desktop/src-tauri/src/setup/` (all files)
+
+**Part 2B:** Rust services, commands, workers
+- `apps/desktop/src-tauri/src/state.rs`
+- `apps/desktop/src-tauri/src/services/mod.rs`
+- `apps/desktop/src-tauri/src/commands/` (all files)
+- `apps/desktop/src-tauri/src/workers/` (all files)
+- `apps/desktop/src-tauri/src/sidecar/mod.rs`
+
+**Part 3A:** Frontend types, lib, stores, hooks
+- `apps/desktop/src/main.tsx`
+- `apps/desktop/src/App.tsx`
+- `apps/desktop/src/types/` (all files)
+- `apps/desktop/src/lib/` (all files)
+- `apps/desktop/src/stores/` (all files)
+- `apps/desktop/src/hooks/` (all files)
+
+**Part 3B-1:** UI, layout, chat components
+- `apps/desktop/src/components/ui/` (all files)
+- `apps/desktop/src/components/layout/` (all files)
+- `apps/desktop/src/components/chat/` (all files)
+
+**Part 3B-2A:** Character, persona, conversation components
+- `apps/desktop/src/components/character/` (all files)
+- `apps/desktop/src/components/persona/` (all files)
+- `apps/desktop/src/components/conversation/` (all files)
+
+**Part 3B-2B:** Lorebook, settings, onboarding components
+- `apps/desktop/src/components/lorebook/` (all files)
+- `apps/desktop/src/components/settings/` (all files)
+- `apps/desktop/src/components/onboarding/` (all files)
+
+**Part 4:** Resources, scripts, docs
+- `resources/characters/starter_character.json`
+- `resources/prompts/default_system.txt`
+- `scripts/` (all files)
+- `docs/` (all files)
+- `README.md`
+- `LICENSE`
+
+### Step 3: Install Dependencies
+
+```bash
+# Install Rust dependencies
+cargo build
+
+# Install Node dependencies
+pnpm install
+```
+
+### Step 4: Download Sidecar
+
+```bash
+# macOS/Linux
+chmod +x scripts/download-sidecar.sh
+./scripts/download-sidecar.sh
+
+# Windows (PowerShell)
+.\scripts\download-sidecar.ps1
+```
+
+### Step 5: Get a Model File
+
+**Option A: Automatic (on first run)**
+- Launch the app
+- Click "Download AI Model & Get Started"
+- Wait for download (~2.5GB)
+
+**Option B: Manual**
+1. Download a GGUF model from HuggingFace (e.g., [TheBloke's models](https://huggingface.co/TheBloke))
+2. Create the models directory:
+   - macOS: `mkdir -p ~/Library/Application\ Support/Glee/models`
+   - Windows: Create `%APPDATA%\Glee\models`
+   - Linux: `mkdir -p ~/.local/share/glee/models`
+3. Place the `.gguf` file in the models directory
+4. Rename to `model.gguf` (or configure path in settings)
+
+### Step 6: Run the App
+
+```bash
+cd apps/desktop
+pnpm tauri dev
+```
+
+---
+
+## Verification Checklist
+
+### Build Verification
+
+- [ ] `cargo build` completes without errors
+- [ ] `pnpm install` completes without errors
+- [ ] `pnpm tauri dev` launches the app
+
+### Feature Verification
+
+- [ ] App shows welcome screen on first run
+- [ ] Model download works (or manual model is detected)
+- [ ] Starter character "Aria" appears in character list
+- [ ] Can create new character
+- [ ] Can edit character
+- [ ] Can delete character
+- [ ] Can import character card (PNG or JSON)
+- [ ] Can start chat with character
+- [ ] Messages send and appear
+- [ ] Character responses stream in
+- [ ] Can regenerate response (new sibling appears)
+- [ ] Branch navigator shows `[1/2]` after regenerate
+- [ ] Can switch between branches
+- [ ] Can edit message (creates new branch)
+- [ ] Can create persona
+- [ ] Persona shows in chat context
+- [ ] Can create lorebook
+- [ ] Can add entries with keywords
+- [ ] Lorebook entries inject when keywords detected
+- [ ] Settings persist across restart
+- [ ] Export character works
+- [ ] Import exported character works
+- [ ] Export all data works
+
+### Platform Verification
+
+- [ ] Works on Windows
+- [ ] Works on macOS
+- [ ] Works on Linux
+
+---
+
+## File Count Summary
+
+| Part | Files |
+|------|-------|
+| Part 1 (Config) | 17 |
+| Part 2A (Rust Core) | 8 |
+| Part 2B (Rust Services) | 17 |
+| Part 3A (Frontend Core) | 28 |
+| Part 3B-1 (UI, Layout, Chat) | 24 |
+| Part 3B-2A (Character, Persona, Conversation) | 15 |
+| Part 3B-2B (Lorebook, Settings, Onboarding) | 13 |
+| Part 4 (Resources, Scripts, Docs) | 9 |
+| **Total** | **~131 files** |
+
+---
+
+## Complete Project Structure
+
+```
+glee/
+├── Cargo.toml
+├── package.json
+├── pnpm-workspace.yaml
+├── .gitignore
+├── .prettierrc
+├── README.md
+├── LICENSE
+│
+├── apps/
+│   └── desktop/
+│       ├── package.json
+│       ├── vite.config.ts
+│       ├── tsconfig.json
+│       ├── tsconfig.node.json
+│       ├── tailwind.config.js
+│       ├── postcss.config.js
+│       ├── index.html
+│       │
+│       ├── src/
+│       │   ├── main.tsx
+│       │   ├── App.tsx
+│       │   ├── styles/
+│       │   │   └── globals.css
+│       │   ├── types/
+│       │   │   ├── index.ts
+│       │   │   ├── character.ts
+│       │   │   ├── conversation.ts
+│       │   │   ├── message.ts
+│       │   │   ├── persona.ts
+│       │   │   ├── lorebook.ts
+│       │   │   ├── settings.ts
+│       │   │   └── events.ts
+│       │   ├── lib/
+│       │   │   ├── commands.ts
+│       │   │   ├── events.ts
+│       │   │   ├── format.ts
+│       │   │   ├── utils.ts
+│       │   │   └── constants.ts
+│       │   ├── stores/
+│       │   │   ├── index.ts
+│       │   │   ├── characterStore.ts
+│       │   │   ├── conversationStore.ts
+│       │   │   ├── chatStore.ts
+│       │   │   ├── personaStore.ts
+│       │   │   ├── lorebookStore.ts
+│       │   │   ├── settingsStore.ts
+│       │   │   ├── downloadStore.ts
+│       │   │   └── uiStore.ts
+│       │   ├── hooks/
+│       │   │   ├── useCharacters.ts
+│       │   │   ├── useConversations.ts
+│       │   │   ├── useChat.ts
+│       │   │   ├── usePersonas.ts
+│       │   │   ├── useLorebooks.ts
+│       │   │   ├── useSettings.ts
+│       │   │   ├── useModelStatus.ts
+│       │   │   ├── useDownload.ts
+│       │   │   ├── useBranching.ts
+│       │   │   └── useTauriEvent.ts
+│       │   └── components/
+│       │       ├── ui/
+│       │       ├── layout/
+│       │       ├── chat/
+│       │       ├── character/
+│       │       ├── persona/
+│       │       ├── conversation/
+│       │       ├── lorebook/
+│       │       ├── settings/
+│       │       └── onboarding/
+│       │
+│       └── src-tauri/
+│           ├── Cargo.toml
+│           ├── tauri.conf.json
+│           ├── build.rs
+│           ├── capabilities/
+│           │   └── default.json
+│           ├── migrations/
+│           │   └── 001_initial_schema.sql
+│           ├── resources/
+│           │   └── llama-server (downloaded)
+│           └── src/
+│               ├── main.rs
+│               ├── lib.rs
+│               ├── app_state.rs → state.rs
+│               ├── error.rs
+│               ├── entities.rs
+│               ├── database.rs
+│               ├── repositories.rs
+│               ├── setup/
+│               ├── services/
+│               ├── commands/
+│               ├── workers/
+│               └── sidecar/
+│
+├── resources/
+│   ├── characters/
+│   │   └── starter_character.json
+│   └── prompts/
+│       └── default_system.txt
+│
+├── scripts/
+│   ├── download-sidecar.sh
+│   ├── download-sidecar.ps1
+│   └── dev-setup.sh
+│
+└── docs/
+    ├── DEVELOPMENT.md
+    └── ARCHITECTURE.md

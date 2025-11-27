@@ -1,0 +1,9 @@
+{
+  "name": "glee",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter @glee/desktop dev",
+    "build": "pnpm --filter @glee/desktop build",
+    "tauri": "pnpm --filter @glee/desktop tauri"
+  }
+}

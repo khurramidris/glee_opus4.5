@@ -1,0 +1,22 @@
+{
+  "$schema": "https://schemas.tauri.app/config/2.0.0/capability",
+  "identifier": "default",
+  "description": "Default capabilities for Glee",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:window:default",
+    "dialog:default",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "fs:default",
+    "fs:allow-app-read",
+    "fs:allow-app-write",
+    "fs:allow-app-read-recursive",
+    "fs:allow-app-write-recursive",
+    "shell:default",
+    "shell:allow-spawn",
+    "shell:allow-kill"
+  ]
+}

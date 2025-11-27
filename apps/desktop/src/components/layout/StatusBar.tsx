@@ -1,0 +1,57 @@
+import { useModelStatus } from '@/hooks/useModelStatus';
+import { cn } from '@/lib/utils';
+import { Spinner } from '@/components/ui/Spinner';
+
+export function StatusBar() {
+  const { status, isLoaded, modelPath } = useModelStatus();
+
+  const statusConfig = {
+    loading: {
+      color: 'text-yellow-400',
+      bg: 'bg-yellow-400',
+      label: 'Loading model...',
+    },
+    ready: {
+      color: 'text-green-400',
+      bg: 'bg-green-400',
+      label: 'Model ready',
+    },
+    error: {
+      color: 'text-red-400',
+      bg: 'bg-red-400',
+      label: 'Model error',
+    },
+    not_found: {
+      color: 'text-surface-400',
+      bg: 'bg-surface-400',
+      label: 'No model loaded',
+    },
+  };
+
+  const config = statusConfig[status] || statusConfig.not_found;
+
+  return (
+    <footer className="h-8 flex items-center justify-between px-4 border-t border-surface-700 bg-surface-800 text-xs">
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          {status === 'loading' ? (
+            <Spinner size="sm" className={config.color} />
+          ) : (
+            <span className={cn('w-2 h-2 rounded-full', config.bg)} />
+          )}
+          <span className={config.color}>{config.label}</span>
+        </div>
+        
+        {modelPath && (
+          <span className="text-surface-500 truncate max-w-xs">
+            {modelPath.split('/').pop()}
+          </span>
+        )}
+      </div>
+
+      <div className="flex items-center gap-4 text-surface-500">
+        <span>v0.1.0</span>
+      </div>
+    </footer>
+  );
+}
