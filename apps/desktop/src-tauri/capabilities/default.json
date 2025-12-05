@@ -1,5 +1,5 @@
 {
-  "$schema": "https://schemas.tauri.app/config/2.0.0/capability",
+  "schema": "https://schemas.tauri.app/config/2.0.0/capability",
   "identifier": "default",
   "description": "Default capabilities for Glee",
   "windows": ["main"],
@@ -7,15 +7,23 @@
     "core:default",
     "core:event:default",
     "core:window:default",
+    "core:webview:default",
     "dialog:default",
     "dialog:allow-open",
     "dialog:allow-save",
     "fs:default",
-    "fs:allow-app-read",
-    "fs:allow-app-write",
-    "fs:allow-app-read-recursive",
-    "fs:allow-app-write-recursive",
+    {
+      "identifier": "fs:scope",
+      "allow": ["$APPDATA/**", "$RESOURCE/**", "$HOME/**", "$DOWNLOAD/**"]
+    },
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
+    "fs:allow-read-file",
+    "fs:allow-write-file",
+    "fs:allow-exists",
+    "fs:allow-mkdir",
     "shell:default",
+    "shell:allow-open",
     "shell:allow-spawn",
     "shell:allow-kill"
   ]

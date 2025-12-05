@@ -5,13 +5,19 @@ import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { GENERATION_DEFAULTS } from '@/lib/constants';
+import { commands } from '@/lib/commands';
 
 export function GenerationSettings() {
-  const { settings, updateSetting, fetchSettings } = useSettings();
+  const { settings, fetchSettings } = useSettings();
   const { addToast } = useUIStore();
-  
+
   const [isSaving, setIsSaving] = useState(false);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    temperature: number;
+    maxTokens: number;
+    topP: number;
+    contextSize: number;
+  }>({
     temperature: GENERATION_DEFAULTS.temperature,
     maxTokens: GENERATION_DEFAULTS.maxTokens,
     topP: GENERATION_DEFAULTS.topP,
@@ -32,10 +38,13 @@ export function GenerationSettings() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await updateSetting('generation.temperature', formData.temperature.toString());
-      await updateSetting('generation.max_tokens', formData.maxTokens.toString());
-      await updateSetting('generation.top_p', formData.topP.toString());
-      await updateSetting('generation.context_size', formData.contextSize.toString());
+      await commands.updateSettingsBatch([
+        ['generation.temperature', formData.temperature.toString()],
+        ['generation.max_tokens', formData.maxTokens.toString()],
+        ['generation.top_p', formData.topP.toString()],
+        ['generation.context_size', formData.contextSize.toString()]
+      ]);
+
       await fetchSettings();
       addToast({ type: 'success', message: 'Settings saved!' });
     } catch (e) {
@@ -80,7 +89,7 @@ export function GenerationSettings() {
               step="0.1"
               value={formData.temperature}
               onChange={(e) => setFormData({ ...formData, temperature: parseFloat(e.target.value) })}
-              className="w-full accent-primary-500"
+              className="w-full accent-primary-500 h-2 bg-surface-700 rounded-lg appearance-none cursor-pointer"
             />
             <p className="text-xs text-surface-500 mt-1">
               Higher values make output more random, lower values more deterministic.
@@ -115,7 +124,7 @@ export function GenerationSettings() {
               step="0.05"
               value={formData.topP}
               onChange={(e) => setFormData({ ...formData, topP: parseFloat(e.target.value) })}
-              className="w-full accent-primary-500"
+              className="w-full accent-primary-500 h-2 bg-surface-700 rounded-lg appearance-none cursor-pointer"
             />
             <p className="text-xs text-surface-500 mt-1">
               Consider only tokens with cumulative probability above this threshold.
@@ -133,7 +142,7 @@ export function GenerationSettings() {
             onChange={(e) => setFormData({ ...formData, contextSize: parseInt(e.target.value) || 8192 })}
           />
           <p className="text-xs text-surface-500 -mt-4">
-            Maximum context window size. Larger values use more memory.
+            Maximum context window size. Larger values use more memory (RAM/VRAM).
           </p>
         </div>
 

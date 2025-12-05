@@ -13,7 +13,7 @@ export function DataSettings() {
   const { addToast } = useUIStore();
   const { fetchCharacters } = useCharacterStore();
   const { fetchConversations } = useConversationStore();
-  
+
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [showImportConfirm, setShowImportConfirm] = useState(false);
@@ -23,12 +23,12 @@ export function DataSettings() {
     setIsExporting(true);
     try {
       const data = await commands.exportAllData();
-      
+
       const filePath = await save({
         defaultPath: `glee-backup-${new Date().toISOString().split('T')[0]}.json`,
         filters: [{ name: 'JSON', extensions: ['json'] }],
       });
-      
+
       if (filePath) {
         await writeTextFile(filePath, data);
         addToast({ type: 'success', message: 'Data exported successfully!' });
@@ -46,7 +46,7 @@ export function DataSettings() {
         filters: [{ name: 'JSON', extensions: ['json'] }],
         multiple: false,
       });
-      
+
       if (filePath && typeof filePath === 'string') {
         setImportFile(filePath);
         setShowImportConfirm(true);
@@ -58,16 +58,16 @@ export function DataSettings() {
 
   const handleImportConfirm = async () => {
     if (!importFile) return;
-    
+
     setIsImporting(true);
     try {
       const data = await readTextFile(importFile);
       const result = await commands.importData(data);
-      
+
       // Refresh stores
       await fetchCharacters();
       await fetchConversations();
-      
+
       addToast({ type: 'success', message: result });
       setShowImportConfirm(false);
       setImportFile(null);
@@ -78,11 +78,6 @@ export function DataSettings() {
     }
   };
 
-  const handleExportCharacter = async () => {
-    // This would open a character selection dialog
-    // For simplicity, we'll just use the export all function
-    addToast({ type: 'info', message: 'Use "Export All Data" to export characters' });
-  };
 
   return (
     <div className="space-y-6">
@@ -96,7 +91,7 @@ export function DataSettings() {
       {/* Export */}
       <Card>
         <h3 className="text-sm font-medium text-surface-300 mb-4">Export Data</h3>
-        
+
         <div className="space-y-4">
           <div className="flex items-center justify-between p-3 bg-surface-700/50 rounded-lg">
             <div>
@@ -119,7 +114,7 @@ export function DataSettings() {
       {/* Import */}
       <Card>
         <h3 className="text-sm font-medium text-surface-300 mb-4">Import Data</h3>
-        
+
         <div className="space-y-4">
           <div className="flex items-center justify-between p-3 bg-surface-700/50 rounded-lg">
             <div>
@@ -142,11 +137,11 @@ export function DataSettings() {
       {/* Data Location */}
       <Card>
         <h3 className="text-sm font-medium text-surface-300 mb-4">Data Location</h3>
-        
+
         <p className="text-sm text-surface-400 mb-3">
           All your data is stored locally on your device. Nothing is sent to the cloud.
         </p>
-        
+
         <div className="p-3 bg-surface-700/50 rounded-lg">
           <p className="text-xs text-surface-500 mb-1">Data directory:</p>
           <p className="text-sm text-surface-300 font-mono break-all">
@@ -163,7 +158,7 @@ export function DataSettings() {
       {/* Danger Zone */}
       <Card className="border-red-900/50">
         <h3 className="text-sm font-medium text-red-400 mb-4">Danger Zone</h3>
-        
+
         <div className="flex items-center justify-between p-3 bg-red-900/20 rounded-lg">
           <div>
             <p className="font-medium text-surface-200">Reset All Data</p>

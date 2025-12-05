@@ -10,7 +10,7 @@ export function StreamingMessage({
   characterName = 'AI',
 }: StreamingMessageProps) {
   return (
-    <div className="flex gap-3 py-3">
+    <div className="flex gap-3 py-3 w-full">
       <Avatar fallback={characterName} size="md" className="flex-shrink-0" />
       
       <div className="flex flex-col max-w-[70%]">
@@ -19,9 +19,9 @@ export function StreamingMessage({
         </span>
         
         <div className="px-4 py-2.5 rounded-2xl rounded-bl-md bg-surface-700 text-surface-100">
-          <p className="whitespace-pre-wrap break-words">
+          <p className="whitespace-pre-wrap break-words leading-relaxed">
             {content}
-            <span className="inline-block w-2 h-4 ml-1 bg-primary-400 animate-pulse" />
+            <span className="inline-block w-2 h-4 ml-1 align-middle bg-primary-400 animate-blink" />
           </p>
         </div>
       </div>

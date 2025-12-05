@@ -9,6 +9,18 @@ pub async fn send_message(
     state: State<'_, AppState>,
     input: SendMessageInput,
 ) -> Result<Message, AppError> {
+    // Check if model is loaded
+    if !state.is_model_loaded() {
+        return Err(AppError::Sidecar("Model not loaded. Please load a model first.".to_string()));
+    }
+    
+    // Check if already generating for this conversation
+    if let Some(gen_state) = state.current_generation() {
+        if gen_state.conversation_id == input.conversation_id {
+            return Err(AppError::Validation("Already generating a response for this conversation".to_string()));
+        }
+    }
+    
     let (message, _task) = MessageService::send_user_message(&state, input)?;
     Ok(message)
 }
@@ -18,6 +30,11 @@ pub async fn regenerate_message(
     state: State<'_, AppState>,
     message_id: String,
 ) -> Result<(), AppError> {
+    // Check if model is loaded
+    if !state.is_model_loaded() {
+        return Err(AppError::Sidecar("Model not loaded".to_string()));
+    }
+    
     MessageService::regenerate_message(&state, &message_id)?;
     Ok(())
 }
@@ -51,6 +68,11 @@ pub async fn switch_branch(
     state: State<'_, AppState>,
     message_id: String,
 ) -> Result<Vec<Message>, AppError> {
+    // Stop any ongoing generation when switching branches
+    if state.is_generating() {
+        state.stop_generation();
+    }
+    
     MessageService::switch_branch(&state.db, &message_id)
 }
 

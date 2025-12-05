@@ -34,39 +34,96 @@ pub async fn get_model_status(
     let status = if model_loaded {
         "ready".to_string()
     } else if settings.model.path.is_empty() {
-        "not_found".to_string()
+        // Check if there's a model in the default location
+        let default_model = state.paths.default_model_path();
+        if default_model.exists() {
+            "not_loaded".to_string()
+        } else {
+            "not_found".to_string()
+        }
     } else {
-        "loading".to_string()
+        let model_path = std::path::Path::new(&settings.model.path);
+        if model_path.exists() {
+            "not_loaded".to_string()
+        } else {
+            "not_found".to_string()
+        }
+    };
+    
+    let model_path = if !settings.model.path.is_empty() {
+        Some(settings.model.path)
+    } else {
+        let default = state.paths.default_model_path();
+        if default.exists() {
+            Some(default.to_string_lossy().to_string())
+        } else {
+            None
+        }
     };
     
     Ok(ModelStatus {
         status,
-        model_path: if settings.model.path.is_empty() {
-            None
-        } else {
-            Some(settings.model.path)
-        },
+        model_path,
         model_loaded,
     })
 }
 
 #[tauri::command]
 pub async fn start_sidecar(
+    app_handle: tauri::AppHandle,  // AppHandle MUST come before State
     state: State<'_, AppState>,
-    app_handle: tauri::AppHandle,
 ) -> Result<(), AppError> {
+    // Check if already running
+    if state.is_model_loaded() {
+        tracing::info!("Sidecar already running");
+        return Ok(());
+    }
+    
     let settings = SettingsService::get_all(&state.db)?;
     
+    // Determine model path
     let model_path = if !settings.model.path.is_empty() {
         std::path::PathBuf::from(&settings.model.path)
     } else {
         state.paths.default_model_path()
     };
     
+    // Check if model exists
     if !model_path.exists() {
+        // Try to find any .gguf file in models directory
+        let models_dir = &state.paths.models_dir;
+        if models_dir.exists() {
+            let mut found_model = None;
+            if let Ok(entries) = std::fs::read_dir(models_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.extension().map(|e| e == "gguf").unwrap_or(false) {
+                        found_model = Some(path);
+                        break;
+                    }
+                }
+            }
+            
+            if let Some(found) = found_model {
+                tracing::info!("Found model file: {:?}", found);
+                // Update settings with found model
+                let _ = SettingsService::set(&state.db, "model.path", &found.to_string_lossy());
+                
+                let handle = sidecar::start_sidecar(
+                    &app_handle,
+                    &found,
+                    settings.model.gpu_layers,
+                    settings.generation.context_size,
+                ).await?;
+                
+                state.set_sidecar(Some(handle));
+                return Ok(());
+            }
+        }
+        
         return Err(AppError::NotFound(format!(
-            "Model file not found: {}",
-            model_path.display()
+            "No model file found. Please place a .gguf model in: {}",
+            state.paths.models_dir.display()
         )));
     }
     
@@ -79,6 +136,7 @@ pub async fn start_sidecar(
     
     state.set_sidecar(Some(handle));
     
+    tracing::info!("Sidecar started successfully");
     Ok(())
 }
 
@@ -86,9 +144,13 @@ pub async fn start_sidecar(
 pub async fn stop_sidecar(
     state: State<'_, AppState>,
 ) -> Result<(), AppError> {
+    // Stop any ongoing generation first
+    state.stop_generation();
+    
     if let Some(handle) = state.get_sidecar() {
         sidecar::stop_sidecar(handle).await?;
         state.set_sidecar(None);
+        tracing::info!("Sidecar stopped");
     }
     Ok(())
 }
@@ -102,4 +164,24 @@ pub async fn health_check(
     } else {
         Ok(false)
     }
+}
+
+/// Restart the sidecar (useful after changing settings)
+#[tauri::command]
+pub async fn restart_sidecar(
+    app_handle: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), AppError> {
+    // Stop existing
+    if let Some(handle) = state.get_sidecar() {
+        state.stop_generation();
+        sidecar::stop_sidecar(handle).await?;
+        state.set_sidecar(None);
+    }
+    
+    // Wait a moment for port to be released
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    
+    // Start again
+    start_sidecar(app_handle, state).await
 }

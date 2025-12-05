@@ -51,3 +51,12 @@ pub async fn get_conversation_messages(
 ) -> Result<Vec<Message>, AppError> {
     ConversationService::get_messages(&state.db, &conversation_id)
 }
+
+/// Find an existing conversation with a single character
+#[tauri::command]
+pub async fn find_conversation_by_character(
+    state: State<'_, AppState>,
+    character_id: String,
+) -> Result<Option<Conversation>, AppError> {
+    ConversationService::find_by_character(&state.db, &character_id)
+}

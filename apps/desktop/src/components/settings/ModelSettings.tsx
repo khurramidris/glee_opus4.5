@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Spinner } from '@/components/ui/Spinner';
+import { open } from '@tauri-apps/plugin-dialog'; // Import dialog
 
 export function ModelSettings() {
   const { settings, updateSetting, fetchSettings } = useSettings();
@@ -28,6 +29,25 @@ export function ModelSettings() {
       setIsSaving(false);
     }
   };
+
+  // --- NEW FUNCTION: BROWSE FILE ---
+  const handleBrowse = async () => {
+    try {
+      const selected = await open({
+        multiple: false,
+        filters: [{ name: 'GGUF Models', extensions: ['gguf'] }],
+      });
+
+      if (selected && typeof selected === 'string') {
+        await updateSetting('model.path', selected);
+        await fetchSettings();
+        addToast({ type: 'success', message: 'Model path updated. Click Load Model.' });
+      }
+    } catch (e) {
+      addToast({ type: 'error', message: `Failed to select model: ${e}` });
+    }
+  };
+  // ---------------------------------
 
   const handleStartModel = async () => {
     try {
@@ -54,7 +74,7 @@ export function ModelSettings() {
     not_found: { color: 'default', label: 'Not Loaded' },
   } as const;
 
-  const currentStatus = statusConfig[status] || statusConfig.not_found;
+  const currentStatus = statusConfig[status as keyof typeof statusConfig] || statusConfig.not_found;
 
   return (
     <div className="space-y-6">
@@ -69,44 +89,44 @@ export function ModelSettings() {
       <Card>
         <h3 className="text-sm font-medium text-surface-300 mb-4">Model Status</h3>
         
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            {isLoading ? (
-              <Spinner size="sm" />
-            ) : (
-              <Badge variant={currentStatus.color}>{currentStatus.label}</Badge>
-            )}
-            {modelPath && (
-              <span className="text-sm text-surface-400 truncate max-w-xs">
-                {modelPath.split('/').pop()}
-              </span>
-            )}
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {isLoading ? (
+                <Spinner size="sm" />
+              ) : (
+                <Badge variant={currentStatus.color}>{currentStatus.label}</Badge>
+              )}
+            </div>
+            
+            <div className="flex gap-2">
+              {isLoaded ? (
+                <Button variant="secondary" onClick={handleStopModel} disabled={isLoading}>
+                  Unload Model
+                </Button>
+              ) : (
+                <Button onClick={handleStartModel} disabled={isLoading}>
+                  Load Model
+                </Button>
+              )}
+            </div>
           </div>
-          
-          <div className="flex gap-2">
-            {isLoaded ? (
-              <Button variant="secondary" onClick={handleStopModel} disabled={isLoading}>
-                Unload Model
-              </Button>
-            ) : (
-              <Button onClick={handleStartModel} disabled={isLoading || !modelPath}>
-                Load Model
-              </Button>
-            )}
+
+          {/* Path Display & Change Button */}
+          <div className="flex items-center gap-2 p-3 bg-surface-900 rounded border border-surface-700">
+            <div className="flex-1 text-sm text-surface-300 font-mono truncate">
+              {modelPath || settings?.model.path || "No model selected"}
+            </div>
+            <Button size="sm" variant="secondary" onClick={handleBrowse}>
+              Change Model
+            </Button>
           </div>
         </div>
-
-        {!modelPath && (
-          <p className="text-sm text-surface-500">
-            No model file found. Place a GGUF model file in the models directory or use the download feature.
-          </p>
-        )}
       </Card>
 
       {/* GPU Settings */}
       <Card>
         <h3 className="text-sm font-medium text-surface-300 mb-4">GPU Acceleration</h3>
-        
         <div className="space-y-4">
           <Input
             label="GPU Layers"
@@ -116,39 +136,10 @@ export function ModelSettings() {
             value={gpuLayers}
             onChange={(e) => setGpuLayers(parseInt(e.target.value) || 0)}
           />
-          <p className="text-xs text-surface-500">
-            Number of model layers to offload to GPU. Set to 0 for CPU only, 
-            99+ for full GPU offload. Requires model reload to take effect.
-          </p>
-
           <Button variant="secondary" onClick={handleSaveGpuLayers} isLoading={isSaving}>
             Save GPU Settings
           </Button>
         </div>
-      </Card>
-
-      {/* Model Info */}
-      <Card>
-        <h3 className="text-sm font-medium text-surface-300 mb-4">Recommended Models</h3>
-        
-        <div className="space-y-3 text-sm">
-          <div className="flex justify-between">
-            <span className="text-surface-400">For 8GB RAM:</span>
-            <span className="text-surface-200">Llama 3.2 3B Q4_K_M (~2.5GB)</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-surface-400">For 16GB RAM:</span>
-            <span className="text-surface-200">Llama 3.1 8B Q4_K_M (~4.5GB)</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-surface-400">For 32GB RAM:</span>
-            <span className="text-surface-200">Llama 3.1 8B Q8_0 (~8GB)</span>
-          </div>
-        </div>
-        
-        <p className="text-xs text-surface-500 mt-4">
-          Place .gguf model files in the models folder within the app data directory.
-        </p>
       </Card>
     </div>
   );

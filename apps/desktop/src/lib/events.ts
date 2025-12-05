@@ -1,25 +1,85 @@
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { listen, type UnlistenFn, type Event } from '@tauri-apps/api/event';
 import type {
   ChatTokenEvent,
   ChatCompleteEvent,
   ChatErrorEvent,
   DownloadProgressEvent,
+  DownloadCompleteEvent,
+  DownloadErrorEvent,
   ModelStatusEvent,
 } from '@/types';
 
+type EventCallback<T> = (payload: T) => void;
+
+/**
+ * Subscribe to a Tauri event with proper typing
+ */
+async function subscribeToEvent<T>(
+  eventName: string,
+  callback: EventCallback<T>
+): Promise<UnlistenFn> {
+  return listen<T>(eventName, (event: Event<T>) => {
+    callback(event.payload);
+  });
+}
+
 export const events = {
-  onChatToken: (handler: (event: ChatTokenEvent) => void): Promise<UnlistenFn> =>
-    listen('chat:token', (e) => handler(e.payload as ChatTokenEvent)),
+  // Chat events
+  onChatToken: (handler: EventCallback<ChatTokenEvent>): Promise<UnlistenFn> =>
+    subscribeToEvent('chat:token', handler),
 
-  onChatComplete: (handler: (event: ChatCompleteEvent) => void): Promise<UnlistenFn> =>
-    listen('chat:complete', (e) => handler(e.payload as ChatCompleteEvent)),
+  onChatComplete: (handler: EventCallback<ChatCompleteEvent>): Promise<UnlistenFn> =>
+    subscribeToEvent('chat:complete', handler),
 
-  onChatError: (handler: (event: ChatErrorEvent) => void): Promise<UnlistenFn> =>
-    listen('chat:error', (e) => handler(e.payload as ChatErrorEvent)),
+  onChatError: (handler: EventCallback<ChatErrorEvent>): Promise<UnlistenFn> =>
+    subscribeToEvent('chat:error', handler),
 
-  onDownloadProgress: (handler: (event: DownloadProgressEvent) => void): Promise<UnlistenFn> =>
-    listen('download:progress', (e) => handler(e.payload as DownloadProgressEvent)),
+  // Download events
+  onDownloadProgress: (handler: EventCallback<DownloadProgressEvent>): Promise<UnlistenFn> =>
+    subscribeToEvent('download:progress', handler),
 
-  onModelStatus: (handler: (event: ModelStatusEvent) => void): Promise<UnlistenFn> =>
-    listen('model:status', (e) => handler(e.payload as ModelStatusEvent)),
+  onDownloadComplete: (handler: EventCallback<DownloadCompleteEvent>): Promise<UnlistenFn> =>
+    subscribeToEvent('download:complete', handler),
+
+  onDownloadError: (handler: EventCallback<DownloadErrorEvent>): Promise<UnlistenFn> =>
+    subscribeToEvent('download:error', handler),
+
+  onDownloadVerifying: (handler: EventCallback<{ id: string }>): Promise<UnlistenFn> =>
+    subscribeToEvent('download:verifying', handler),
+
+  // Model events
+  onModelStatus: (handler: EventCallback<ModelStatusEvent>): Promise<UnlistenFn> =>
+    subscribeToEvent('model:status', handler),
 };
+
+/**
+ * Helper to manage multiple event subscriptions
+ */
+export class EventSubscriptionManager {
+  private unsubscribers: UnlistenFn[] = [];
+  private mounted = true;
+
+  async subscribe<T>(
+    eventName: string,
+    handler: EventCallback<T>
+  ): Promise<void> {
+    const unsubscribe = await subscribeToEvent(eventName, (payload: T) => {
+      if (this.mounted) {
+        handler(payload);
+      }
+    });
+    
+    if (this.mounted) {
+      this.unsubscribers.push(unsubscribe);
+    } else {
+      // Already unmounted, clean up immediately
+      unsubscribe();
+    }
+  }
+
+  unsubscribeAll(): void {
+    this.mounted = false;
+    this.unsubscribers.forEach((unsub) => unsub());
+    this.unsubscribers = [];
+  }
+}

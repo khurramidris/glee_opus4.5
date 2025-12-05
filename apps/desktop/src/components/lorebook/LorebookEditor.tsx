@@ -18,7 +18,7 @@ export function LorebookEditor() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { lorebook, isLoading } = useLorebook(id!);
-  const { updateLorebook, createEntry, deleteEntry } = useLorebookStore();
+  const { updateLorebook, deleteEntry } = useLorebookStore();
   const { addToast } = useUIStore();
 
   const [formData, setFormData] = useState<UpdateLorebookInput>({});

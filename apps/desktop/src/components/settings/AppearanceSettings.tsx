@@ -18,10 +18,24 @@ export function AppearanceSettings() {
     }
   }, [settings]);
 
+  // Apply theme immediately for preview
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.remove('theme-light', 'theme-dark', 'theme-system');
+    
+    if (theme === 'system') {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      root.classList.add(prefersDark ? 'theme-dark' : 'theme-light');
+    } else {
+      root.classList.add(`theme-${theme}`);
+    }
+  }, [theme]);
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await updateSetting('app.theme', JSON.stringify(theme));
+      // Just save string directly, backend handles quotes if needed or frontend sends raw string
+      await updateSetting('app.theme', theme);
       await fetchSettings();
       addToast({ type: 'success', message: 'Appearance settings saved!' });
     } catch (e) {
@@ -33,8 +47,8 @@ export function AppearanceSettings() {
 
   const themes = [
     { id: 'dark', label: 'Dark', description: 'Default dark theme' },
-    { id: 'light', label: 'Light', description: 'Light theme (coming soon)', disabled: true },
-    { id: 'system', label: 'System', description: 'Match system preference (coming soon)', disabled: true },
+    { id: 'light', label: 'Light', description: 'Clean light theme' },
+    { id: 'system', label: 'System', description: 'Match system preference' },
   ];
 
   return (
@@ -53,14 +67,12 @@ export function AppearanceSettings() {
           {themes.map((t) => (
             <button
               key={t.id}
-              onClick={() => !t.disabled && setTheme(t.id)}
-              disabled={t.disabled}
+              onClick={() => setTheme(t.id)}
               className={cn(
                 'p-4 rounded-lg border text-left transition-colors',
                 theme === t.id
                   ? 'border-primary-500 bg-primary-500/10'
-                  : 'border-surface-600 hover:border-surface-500',
-                t.disabled && 'opacity-50 cursor-not-allowed'
+                  : 'border-surface-600 hover:border-surface-500'
               )}
             >
               <p className="font-medium text-surface-100">{t.label}</p>
@@ -80,12 +92,12 @@ export function AppearanceSettings() {
       <Card>
         <h3 className="text-sm font-medium text-surface-300 mb-4">Preview</h3>
         
-        <div className="bg-surface-700 rounded-lg p-4 space-y-3">
+        <div className="bg-surface-700/50 rounded-lg p-4 space-y-3 border border-surface-600">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary-600" />
+            <div className="w-10 h-10 rounded-full bg-surface-600 shrink-0" />
             <div>
               <p className="font-medium text-surface-100">Character Name</p>
-              <p className="text-sm text-surface-400">Sample message preview</p>
+              <p className="text-sm text-surface-400">Sample message preview for the selected theme.</p>
             </div>
           </div>
           <div className="flex justify-end">

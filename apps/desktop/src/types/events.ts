@@ -24,6 +24,16 @@ export interface DownloadProgressEvent {
   speedBps: number;
 }
 
+export interface DownloadCompleteEvent {
+  id: string;
+  path: string;
+}
+
+export interface DownloadErrorEvent {
+  id: string;
+  error: string;
+}
+
 export interface ModelStatusEvent {
   status: string;
   message: string | null;

@@ -1,10 +1,9 @@
-use rusqlite::{Connection, params};
+use rusqlite::{Connection, Transaction};
 use std::path::Path;
 use std::sync::Arc;
 use parking_lot::Mutex;
 
 use crate::error::{AppError, AppResult};
-use rusqlite::OptionalExtension;
 
 pub struct Database {
     conn: Arc<Mutex<Connection>>,
@@ -24,7 +23,8 @@ impl Database {
             "PRAGMA foreign_keys = ON;
              PRAGMA journal_mode = WAL;
              PRAGMA synchronous = NORMAL;
-             PRAGMA busy_timeout = 5000;"
+             PRAGMA busy_timeout = 5000;
+             PRAGMA cache_size = -64000;"  // 64MB cache
         )?;
         
         Ok(Self {
@@ -34,6 +34,46 @@ impl Database {
     
     pub fn connection(&self) -> Arc<Mutex<Connection>> {
         self.conn.clone()
+    }
+    
+    /// Execute a function within a transaction
+    pub fn transaction<F, T>(&self, f: F) -> AppResult<T>
+    where
+        F: FnOnce(&Connection) -> AppResult<T>,
+    {
+        let mut conn = self.conn.lock();
+        let tx = conn.transaction().map_err(AppError::Database)?;
+        
+        match f(&tx) {
+            Ok(result) => {
+                tx.commit().map_err(AppError::Database)?;
+                Ok(result)
+            }
+            Err(e) => {
+                // Transaction automatically rolls back when dropped
+                Err(e)
+            }
+        }
+    }
+    
+    /// Execute a function within a transaction (mutable version)
+    pub fn transaction_mut<F, T>(&self, f: F) -> AppResult<T>
+    where
+        F: FnOnce(&mut Connection) -> AppResult<T>,
+    {
+        let mut conn = self.conn.lock();
+        conn.execute("BEGIN TRANSACTION", [])?;
+        
+        match f(&mut conn) {
+            Ok(result) => {
+                conn.execute("COMMIT", [])?;
+                Ok(result)
+            }
+            Err(e) => {
+                let _ = conn.execute("ROLLBACK", []);
+                Err(e)
+            }
+        }
     }
     
     pub fn execute<P>(&self, sql: &str, params: P) -> AppResult<usize>
@@ -61,6 +101,7 @@ impl Database {
         P: rusqlite::Params,
         F: FnOnce(&rusqlite::Row<'_>) -> rusqlite::Result<T>,
     {
+        use rusqlite::OptionalExtension;
         let conn = self.conn.lock();
         conn.query_row(sql, params, f).optional().map_err(AppError::from)
     }
@@ -71,7 +112,7 @@ impl Database {
         F: FnMut(&rusqlite::Row<'_>) -> rusqlite::Result<T>,
     {
         let conn = self.conn.lock();
-        let mut stmt = conn.prepare(sql)?;
+        let mut stmt = conn.prepare_cached(sql)?;  // Use cached statements
         let rows = stmt.query_map(params, f)?;
         
         let mut results = Vec::new();

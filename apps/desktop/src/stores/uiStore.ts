@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { TOAST_DURATIONS } from '@/lib/constants';
 
 export interface ToastMessage {
   id: string;
@@ -45,12 +46,15 @@ export const useUIStore = create<UIState>((set, get) => ({
   toasts: [],
   addToast: (toast) => {
     const id = crypto.randomUUID();
+    
+    // Use type-specific duration or fallback
+    const duration = toast.duration ?? TOAST_DURATIONS[toast.type] ?? 5000;
+    
     set((state) => ({
       toasts: [...state.toasts, { ...toast, id }],
     }));
     
     // Auto remove after duration
-    const duration = toast.duration ?? 5000;
     setTimeout(() => {
       get().removeToast(id);
     }, duration);

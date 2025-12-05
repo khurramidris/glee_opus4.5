@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import { Spinner } from '@/components/ui/Spinner';
 
 export function StatusBar() {
-  const { status, isLoaded, modelPath } = useModelStatus();
+  const { status, modelPath } = useModelStatus();
 
   const statusConfig = {
     loading: {
@@ -26,6 +26,11 @@ export function StatusBar() {
       bg: 'bg-surface-400',
       label: 'No model loaded',
     },
+    not_loaded: {
+      color: 'text-surface-400',
+      bg: 'bg-surface-400',
+      label: 'Model not loaded',
+    },
   };
 
   const config = statusConfig[status] || statusConfig.not_found;
@@ -41,7 +46,7 @@ export function StatusBar() {
           )}
           <span className={config.color}>{config.label}</span>
         </div>
-        
+
         {modelPath && (
           <span className="text-surface-500 truncate max-w-xs">
             {modelPath.split('/').pop()}

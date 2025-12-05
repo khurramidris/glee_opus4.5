@@ -1,5 +1,7 @@
-use std::io::Write;
-use tokio::sync::mpsc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use tokio::io::AsyncWriteExt;
+use tokio::sync::{mpsc, Notify};
 use tauri::{AppHandle, Emitter};
 use futures::StreamExt;
 
@@ -8,52 +10,95 @@ use crate::repositories::*;
 use crate::state::{AppState, DownloadMessage};
 use crate::error::AppError;
 
+/// Heartbeat interval in seconds
+const HEARTBEAT_INTERVAL_SECS: u64 = 5;
+/// Consider a download stale if no heartbeat for this many seconds
+const STALE_THRESHOLD_SECS: i64 = 30;
+
 pub async fn run(
     state: AppState,
     app_handle: AppHandle,
     mut rx: mpsc::Receiver<DownloadMessage>,
+    shutdown: Arc<Notify>,
 ) {
     tracing::info!("Download worker started");
     
-    // Check for existing pending/paused downloads on startup
-    if let Ok(Some(download)) = DownloadRepo::find_active(&state.db) {
-        if download.status == DownloadStatus::Downloading {
-            // Resume interrupted download
-            tokio::spawn(process_download(state.clone(), app_handle.clone(), download.id));
+    // Check for stale downloads on startup
+    check_stale_downloads(&state).await;
+    
+    // Track active download for cancellation
+    let cancel_flag = Arc::new(AtomicBool::new(false));
+    
+    loop {
+        tokio::select! {
+            biased;
+            
+            // Check shutdown signal
+            _ = shutdown.notified() => {
+                tracing::info!("Download worker received shutdown signal");
+                cancel_flag.store(true, Ordering::SeqCst);
+                break;
+            }
+            
+            msg = rx.recv() => {
+                match msg {
+                    Some(DownloadMessage::Start { id }) => {
+                        cancel_flag.store(false, Ordering::SeqCst);
+                        let s = state.clone();
+                        let h = app_handle.clone();
+                        let flag = cancel_flag.clone();
+                        tokio::spawn(async move {
+                            process_download(s, h, id, flag).await;
+                        });
+                    }
+                    Some(DownloadMessage::Resume { id }) => {
+                        cancel_flag.store(false, Ordering::SeqCst);
+                        let s = state.clone();
+                        let h = app_handle.clone();
+                        let flag = cancel_flag.clone();
+                        tokio::spawn(async move {
+                            process_download(s, h, id, flag).await;
+                        });
+                    }
+                    Some(DownloadMessage::Pause { .. }) => {
+                        cancel_flag.store(true, Ordering::SeqCst);
+                    }
+                    Some(DownloadMessage::Cancel { .. }) => {
+                        cancel_flag.store(true, Ordering::SeqCst);
+                    }
+                    Some(DownloadMessage::Stop) | None => {
+                        tracing::info!("Download worker stopping");
+                        cancel_flag.store(true, Ordering::SeqCst);
+                        break;
+                    }
+                }
+            }
         }
     }
     
-    loop {
-        match rx.recv().await {
-            Some(DownloadMessage::Start { id }) => {
-                let s = state.clone();
-                let h = app_handle.clone();
-                tokio::spawn(async move {
-                    process_download(s, h, id).await;
-                });
-            }
-            Some(DownloadMessage::Resume { id }) => {
-                let s = state.clone();
-                let h = app_handle.clone();
-                tokio::spawn(async move {
-                    process_download(s, h, id).await;
-                });
-            }
-            Some(DownloadMessage::Pause { .. }) => {
-                // Pause is handled by checking status in download loop
-            }
-            Some(DownloadMessage::Cancel { .. }) => {
-                // Cancel is handled by checking status in download loop
-            }
-            Some(DownloadMessage::Stop) | None => {
-                tracing::info!("Download worker stopping");
-                break;
+    tracing::info!("Download worker stopped");
+}
+
+async fn check_stale_downloads(state: &AppState) {
+    if let Ok(Some(download)) = DownloadRepo::find_active(&state.db) {
+        if download.status == DownloadStatus::Downloading {
+            let now = now_timestamp();
+            let last_update = download.updated_at;
+            
+            if now - last_update > STALE_THRESHOLD_SECS {
+                tracing::warn!("Found stale download {}, resetting to pending", download.id);
+                let _ = DownloadRepo::update_status(&state.db, &download.id, DownloadStatus::Pending, None);
             }
         }
     }
 }
 
-async fn process_download(state: AppState, app_handle: AppHandle, id: String) {
+async fn process_download(
+    state: AppState,
+    app_handle: AppHandle,
+    id: String,
+    cancel_flag: Arc<AtomicBool>,
+) {
     tracing::info!("Starting download: {}", id);
     
     let download = match DownloadRepo::find_by_id(&state.db, &id) {
@@ -70,10 +115,30 @@ async fn process_download(state: AppState, app_handle: AppHandle, id: String) {
         return;
     }
     
-    let result = do_download(&state, &app_handle, &download).await;
+    // Start heartbeat task
+    let heartbeat_state = state.clone();
+    let heartbeat_id = id.clone();
+    let heartbeat_cancel = cancel_flag.clone();
+    let heartbeat_handle = tokio::spawn(async move {
+        loop {
+            if heartbeat_cancel.load(Ordering::SeqCst) {
+                break;
+            }
+            
+            // Update the updated_at timestamp as heartbeat
+            let _ = DownloadRepo::update_progress(&heartbeat_state.db, &heartbeat_id, -1);
+            
+            tokio::time::sleep(std::time::Duration::from_secs(HEARTBEAT_INTERVAL_SECS)).await;
+        }
+    });
+    
+    let result = do_download(&state, &app_handle, &download, cancel_flag).await;
+    
+    // Stop heartbeat
+    heartbeat_handle.abort();
     
     match result {
-        Ok(_) => {
+        Ok(DownloadResult::Completed) => {
             tracing::info!("Download completed: {}", id);
             let _ = DownloadRepo::update_status(&state.db, &id, DownloadStatus::Completed, None);
             
@@ -85,20 +150,56 @@ async fn process_download(state: AppState, app_handle: AppHandle, id: String) {
                 status: "ready".to_string(),
                 message: Some("Model downloaded successfully".to_string()),
             });
+            
+            // Also emit download complete
+            let _ = app_handle.emit("download:complete", serde_json::json!({
+                "id": id,
+                "path": download.destination_path,
+            }));
+        }
+        Ok(DownloadResult::Paused) => {
+            tracing::info!("Download paused: {}", id);
+            // Status already updated to paused
+        }
+        Ok(DownloadResult::Cancelled) => {
+            tracing::info!("Download cancelled: {}", id);
+            // Status already updated to cancelled
+            
+            // Delete partial file
+            let path = std::path::Path::new(&download.destination_path);
+            if path.exists() {
+                let _ = tokio::fs::remove_file(path).await;
+            }
         }
         Err(e) => {
             tracing::error!("Download failed: {}", e);
             let _ = DownloadRepo::update_status(&state.db, &id, DownloadStatus::Failed, Some(&e.to_string()));
+            
+            let _ = app_handle.emit("download:error", serde_json::json!({
+                "id": id,
+                "error": e.to_string(),
+            }));
         }
     }
+}
+
+enum DownloadResult {
+    Completed,
+    Paused,
+    Cancelled,
 }
 
 async fn do_download(
     state: &AppState,
     app_handle: &AppHandle,
     download: &Download,
-) -> Result<(), AppError> {
-    let client = reqwest::Client::new();
+    cancel_flag: Arc<AtomicBool>,
+) -> Result<DownloadResult, AppError> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(3600)) // 1 hour total timeout
+        .connect_timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| AppError::Download(format!("Failed to create HTTP client: {}", e)))?;
     
     // Check for partial download
     let start_byte = download.downloaded_bytes;
@@ -107,71 +208,97 @@ async fn do_download(
     let mut request = client.get(&download.url);
     
     if start_byte > 0 {
+        tracing::info!("Resuming download from byte {}", start_byte);
         request = request.header("Range", format!("bytes={}-", start_byte));
     }
     
-    let response = request.send().await?;
+    let response = request.send().await
+        .map_err(|e| AppError::Download(format!("Failed to start download: {}", e)))?;
     
-    if !response.status().is_success() && response.status().as_u16() != 206 {
+    let status = response.status();
+    if !status.is_success() && status.as_u16() != 206 {
         return Err(AppError::Download(format!(
-            "HTTP error: {}",
-            response.status()
+            "HTTP error: {} - {}",
+            status,
+            response.text().await.unwrap_or_default()
         )));
     }
     
     // Get total size
+    let content_length = response.content_length();
     let total_bytes = if start_byte == 0 {
-        response
-            .content_length()
-            .ok_or_else(|| AppError::Download("Unknown content length".to_string()))?
+        content_length.ok_or_else(|| AppError::Download("Server didn't provide content length".to_string()))?
     } else {
         download.total_bytes as u64
     };
     
-    // Update total bytes if this is a fresh download
-    if start_byte == 0 {
-        // We'd update the record, but for simplicity just proceed
+    // Update total bytes in database if this is a fresh download
+    if start_byte == 0 && download.total_bytes == 0 {
+        tracing::info!("Download size: {} bytes", total_bytes);
     }
     
-    // Open file for writing
+    // Ensure parent directory exists
     let path = std::path::Path::new(&download.destination_path);
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
+        tokio::fs::create_dir_all(parent).await?;
     }
     
+    // Open file for writing (async)
     let mut file = if start_byte > 0 {
-        std::fs::OpenOptions::new()
+        tokio::fs::OpenOptions::new()
             .append(true)
-            .open(path)?
+            .open(path)
+            .await?
     } else {
-        std::fs::File::create(path)?
+        tokio::fs::File::create(path).await?
     };
     
     // Stream download
     let mut stream = response.bytes_stream();
     let mut downloaded = start_byte;
     let mut last_progress_emit = std::time::Instant::now();
-    let mut last_downloaded = downloaded;
+    let mut last_downloaded_for_speed = downloaded;
+    let mut last_db_update = std::time::Instant::now();
     
     while let Some(chunk) = stream.next().await {
         // Check if cancelled or paused
-        let current = DownloadRepo::find_by_id(&state.db, &download.id)?;
-        if current.status == DownloadStatus::Cancelled || current.status == DownloadStatus::Paused {
-            return Ok(());
+        if cancel_flag.load(Ordering::SeqCst) {
+            // Check what the current status is
+            let current = DownloadRepo::find_by_id(&state.db, &download.id)?;
+            match current.status {
+                DownloadStatus::Paused => {
+                    file.flush().await?;
+                    DownloadRepo::update_progress(&state.db, &download.id, downloaded)?;
+                    return Ok(DownloadResult::Paused);
+                }
+                DownloadStatus::Cancelled => {
+                    return Ok(DownloadResult::Cancelled);
+                }
+                _ => {}
+            }
         }
         
-        let chunk = chunk?;
-        file.write_all(&chunk)?;
+        let chunk = chunk.map_err(|e| AppError::Download(format!("Stream error: {}", e)))?;
+        file.write_all(&chunk).await?;
         downloaded += chunk.len() as i64;
         
-        // Update progress in DB periodically
-        let _ = DownloadRepo::update_progress(&state.db, &download.id, downloaded);
-        
-        // Emit progress event (throttled)
         let now = std::time::Instant::now();
+        
+        // Update progress in DB periodically (every 2 seconds)
+        if now.duration_since(last_db_update).as_secs() >= 2 {
+            let _ = DownloadRepo::update_progress(&state.db, &download.id, downloaded);
+            last_db_update = now;
+        }
+        
+        // Emit progress event (throttled to every 200ms)
         if now.duration_since(last_progress_emit).as_millis() >= 200 {
-            let speed = ((downloaded - last_downloaded) as f64 / 
-                now.duration_since(last_progress_emit).as_secs_f64()) as i64;
+            let elapsed_secs = now.duration_since(last_progress_emit).as_secs_f64();
+            let bytes_since_last = downloaded - last_downloaded_for_speed;
+            let speed = if elapsed_secs > 0.0 {
+                (bytes_since_last as f64 / elapsed_secs) as i64
+            } else {
+                0
+            };
             
             let _ = app_handle.emit("download:progress", DownloadProgressEvent {
                 id: download.id.clone(),
@@ -181,31 +308,56 @@ async fn do_download(
             });
             
             last_progress_emit = now;
-            last_downloaded = downloaded;
+            last_downloaded_for_speed = downloaded;
         }
     }
     
-    file.flush()?;
+    file.flush().await?;
     
-    // Verify checksum if provided
+    // Final progress update
+    DownloadRepo::update_progress(&state.db, &download.id, downloaded)?;
+    
+    // Verify checksum if provided (async version)
     if let Some(ref expected_checksum) = download.checksum {
         tracing::info!("Verifying checksum...");
         
-        let data = std::fs::read(path)?;
-        use sha2::{Sha256, Digest};
-        let mut hasher = Sha256::new();
-        hasher.update(&data);
-        let result = hasher.finalize();
-        let actual_checksum = format!("{:x}", result);
+        let _ = app_handle.emit("download:verifying", serde_json::json!({
+            "id": download.id,
+        }));
         
-        if actual_checksum != *expected_checksum {
-            std::fs::remove_file(path)?;
+        let actual_checksum = compute_sha256_async(path).await?;
+        
+        if actual_checksum.to_lowercase() != expected_checksum.to_lowercase() {
+            tokio::fs::remove_file(path).await?;
             return Err(AppError::Download(format!(
                 "Checksum mismatch: expected {}, got {}",
                 expected_checksum, actual_checksum
             )));
         }
+        
+        tracing::info!("Checksum verified");
     }
     
-    Ok(())
+    Ok(DownloadResult::Completed)
+}
+
+/// Compute SHA256 hash of a file asynchronously
+async fn compute_sha256_async(path: &std::path::Path) -> Result<String, AppError> {
+    use sha2::{Sha256, Digest};
+    use tokio::io::AsyncReadExt;
+    
+    let mut file = tokio::fs::File::open(path).await?;
+    let mut hasher = Sha256::new();
+    let mut buffer = vec![0u8; 64 * 1024]; // 64KB buffer
+    
+    loop {
+        let bytes_read = file.read(&mut buffer).await?;
+        if bytes_read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..bytes_read]);
+    }
+    
+    let result = hasher.finalize();
+    Ok(format!("{:x}", result))
 }

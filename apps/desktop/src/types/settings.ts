@@ -9,6 +9,8 @@ export interface GenerationSettings {
   maxTokens: number;
   topP: number;
   contextSize: number;
+  lorebookBudget?: number;
+  responseReserve?: number;
 }
 
 export interface AppSettings {
@@ -29,7 +31,7 @@ export interface AppInfo {
 }
 
 export interface ModelStatus {
-  status: 'loading' | 'ready' | 'error' | 'not_found';
+  status: 'loading' | 'ready' | 'error' | 'not_found' | 'not_loaded';
   modelPath: string | null;
   modelLoaded: boolean;
 }

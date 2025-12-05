@@ -1,5 +1,4 @@
 import { useState, type KeyboardEvent } from 'react';
-import { Input } from '@/components/ui/Input';
 
 interface KeywordInputProps {
   keywords: string[];

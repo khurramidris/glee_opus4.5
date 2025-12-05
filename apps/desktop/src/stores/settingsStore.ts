@@ -7,7 +7,7 @@ interface SettingsState {
   modelStatus: ModelStatus | null;
   isLoading: boolean;
   error: string | null;
-  
+
   fetchSettings: () => Promise<void>;
   updateSetting: (key: string, value: string) => Promise<void>;
   fetchModelStatus: () => Promise<void>;
@@ -16,7 +16,7 @@ interface SettingsState {
   setFirstRunComplete: () => Promise<void>;
 }
 
-export const useSettingsStore = create<SettingsState>((set, get) => ({
+export const useSettingsStore = create<SettingsState>((set) => ({
   settings: null,
   modelStatus: null,
   isLoading: false,
@@ -34,7 +34,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   updateSetting: async (key, value) => {
     await commands.updateSetting(key, value);
-    // Refresh settings
     const settings = await commands.getSettings();
     set({ settings });
   },
@@ -44,7 +43,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const modelStatus = await commands.getModelStatus();
       set({ modelStatus });
     } catch (e) {
-      set({ error: String(e) });
+      // Don't set global error for background polling
+      console.error(e);
     }
   },
 
@@ -52,16 +52,19 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       await commands.startSidecar();
-      set({ 
+      set({
         modelStatus: { status: 'ready', modelPath: null, modelLoaded: true },
         isLoading: false,
       });
     } catch (e) {
-      set({ 
-        error: String(e),
+      const errorMsg = String(e);
+      set({
+        error: errorMsg,
         modelStatus: { status: 'error', modelPath: null, modelLoaded: false },
         isLoading: false,
       });
+      // CRITICAL FIX: Rethrow so the UI component knows it failed
+      throw e;
     }
   },
 

@@ -50,7 +50,7 @@ export const MessageBubble = memo(function MessageBubble({
   return (
     <div
       className={cn(
-        'group flex gap-3 py-3',
+        'group flex gap-3 py-3 w-full',
         isUser ? 'flex-row-reverse' : 'flex-row'
       )}
       onMouseEnter={() => setShowActions(true)}
@@ -100,27 +100,35 @@ export const MessageBubble = memo(function MessageBubble({
               <textarea
                 value={editContent}
                 onChange={(e) => setEditContent(e.target.value)}
-                className="w-full bg-transparent border-none outline-none resize-none text-inherit"
-                rows={3}
+                className="w-full bg-transparent border-none outline-none resize-none text-inherit focus:ring-0"
+                rows={Math.max(3, Math.ceil(editContent.length / 40))}
                 autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSaveEdit();
+                  } else if (e.key === 'Escape') {
+                    handleCancelEdit();
+                  }
+                }}
               />
               <div className="flex justify-end gap-2 mt-2">
                 <button
                   onClick={handleCancelEdit}
-                  className="text-xs text-surface-400 hover:text-surface-200"
+                  className="text-xs text-white/70 hover:text-white"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSaveEdit}
-                  className="text-xs text-primary-400 hover:text-primary-300"
+                  className="text-xs font-bold text-white hover:text-white/90"
                 >
                   Save
                 </button>
               </div>
             </div>
           ) : (
-            <p className="whitespace-pre-wrap break-words">{message.content}</p>
+            <p className="whitespace-pre-wrap break-words leading-relaxed">{message.content}</p>
           )}
         </div>
 
@@ -128,6 +136,7 @@ export const MessageBubble = memo(function MessageBubble({
         <MessageActions
           visible={showActions && !isEditing}
           isUser={isUser}
+          content={message.content}
           onEdit={() => setIsEditing(true)}
           onRegenerate={onRegenerate}
         />

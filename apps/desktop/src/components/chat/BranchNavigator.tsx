@@ -17,10 +17,27 @@ export function BranchNavigator({
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
+    let mounted = true;
+    
     setIsLoading(true);
     getSiblings(messageId)
-      .then(setSiblings)
-      .finally(() => setIsLoading(false));
+      .then((result) => {
+        if (mounted) {
+          setSiblings(result);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to fetch siblings", err);
+      })
+      .finally(() => {
+        if (mounted) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
   }, [messageId, getSiblings]);
 
   if (isLoading || siblings.length <= 1) {
@@ -44,12 +61,12 @@ export function BranchNavigator({
   };
 
   return (
-    <div className="flex items-center gap-1 mb-1 text-xs text-surface-400">
+    <div className="flex items-center gap-1 mb-1 text-xs text-surface-400 select-none">
       <button
         onClick={goToPrevious}
         disabled={!hasPrevious}
         className={cn(
-          'p-1 rounded hover:bg-surface-700 transition-colors',
+          'p-1 rounded hover:bg-surface-600 transition-colors',
           !hasPrevious && 'opacity-30 cursor-not-allowed'
         )}
       >
@@ -58,15 +75,15 @@ export function BranchNavigator({
         </svg>
       </button>
       
-      <span className="px-1 font-medium">
-        {currentIndex + 1}/{siblings.length}
+      <span className="px-1 font-medium min-w-[2.5rem] text-center">
+        {currentIndex + 1} / {siblings.length}
       </span>
       
       <button
         onClick={goToNext}
         disabled={!hasNext}
         className={cn(
-          'p-1 rounded hover:bg-surface-700 transition-colors',
+          'p-1 rounded hover:bg-surface-600 transition-colors',
           !hasNext && 'opacity-30 cursor-not-allowed'
         )}
       >

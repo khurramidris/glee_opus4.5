@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use parking_lot::RwLock;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Notify};
+use tokio_util::sync::CancellationToken;
 
 use crate::database::Database;
 use crate::setup::paths::AppPaths;
@@ -23,10 +24,18 @@ pub enum DownloadMessage {
 pub struct AppState {
     pub db: Database,
     pub paths: AppPaths,
-    pub sidecar: Arc<RwLock<Option<SidecarHandle>>>,
+    sidecar: Arc<RwLock<Option<SidecarHandle>>>,
     pub queue_tx: mpsc::Sender<QueueMessage>,
     pub download_tx: mpsc::Sender<DownloadMessage>,
-    pub generating: Arc<RwLock<Option<String>>>, // Current generating message ID
+    generating: Arc<RwLock<Option<GenerationState>>>,
+    shutdown_notify: Arc<Notify>,
+}
+
+#[derive(Clone)]
+pub struct GenerationState {
+    pub message_id: String,
+    pub conversation_id: String,
+    pub cancel_token: CancellationToken,
 }
 
 impl AppState {
@@ -35,6 +44,7 @@ impl AppState {
         paths: AppPaths,
         queue_tx: mpsc::Sender<QueueMessage>,
         download_tx: mpsc::Sender<DownloadMessage>,
+        shutdown_notify: Arc<Notify>,
     ) -> Self {
         Self {
             db,
@@ -43,8 +53,31 @@ impl AppState {
             queue_tx,
             download_tx,
             generating: Arc::new(RwLock::new(None)),
+            shutdown_notify,
         }
     }
+    
+    // ==================== Shutdown ====================
+    
+    pub fn shutdown(&self) {
+        tracing::info!("AppState shutdown initiated");
+        
+        // Cancel any ongoing generation
+        self.stop_generation();
+        
+        // Notify workers to stop
+        self.shutdown_notify.notify_waiters();
+        
+        // Send stop messages to workers
+        let _ = self.queue_tx.try_send(QueueMessage::Stop);
+        let _ = self.download_tx.try_send(DownloadMessage::Stop);
+    }
+    
+    pub fn shutdown_signal(&self) -> Arc<Notify> {
+        self.shutdown_notify.clone()
+    }
+    
+    // ==================== Sidecar Management ====================
     
     pub fn is_model_loaded(&self) -> bool {
         self.sidecar.read().is_some()
@@ -58,15 +91,64 @@ impl AppState {
         *self.sidecar.write() = handle;
     }
     
+    /// Take ownership of the sidecar handle (removes it from state)
+    /// Used during cleanup to ensure proper shutdown
+    pub fn take_sidecar(&self) -> Option<SidecarHandle> {
+        self.sidecar.write().take()
+    }
+    
+    // ==================== Generation State ====================
+    
     pub fn is_generating(&self) -> bool {
         self.generating.read().is_some()
     }
     
-    pub fn set_generating(&self, message_id: Option<String>) {
-        *self.generating.write() = message_id;
+    pub fn start_generation(&self, message_id: String, conversation_id: String) -> CancellationToken {
+        let cancel_token = CancellationToken::new();
+        *self.generating.write() = Some(GenerationState {
+            message_id,
+            conversation_id,
+            cancel_token: cancel_token.clone(),
+        });
+        cancel_token
+    }
+    
+    pub fn stop_generation(&self) {
+        let mut guard = self.generating.write();
+        if let Some(state) = guard.take() {
+            tracing::info!("Stopping generation for message: {}", state.message_id);
+            state.cancel_token.cancel();
+        }
+    }
+    
+    pub fn finish_generation(&self) {
+        *self.generating.write() = None;
+    }
+    
+    pub fn current_generation(&self) -> Option<GenerationState> {
+        self.generating.read().clone()
     }
     
     pub fn current_generating_id(&self) -> Option<String> {
-        self.generating.read().clone()
+        self.generating.read().as_ref().map(|s| s.message_id.clone())
+    }
+    
+    pub fn is_generating_message(&self, message_id: &str) -> bool {
+        self.generating
+            .read()
+            .as_ref()
+            .map(|s| s.message_id == message_id)
+            .unwrap_or(false)
+    }
+    
+    pub fn cancel_conversation_generation(&self, conversation_id: &str) -> bool {
+        let guard = self.generating.read();
+        if let Some(state) = guard.as_ref() {
+            if state.conversation_id == conversation_id {
+                state.cancel_token.cancel();
+                return true;
+            }
+        }
+        false
     }
 }

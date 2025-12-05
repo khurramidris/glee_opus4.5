@@ -1,56 +1,20 @@
 use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
+use std::str::FromStr;
 
-// ============================================
-// Common Types
-// ============================================
-
+// ==========================================
+// SHARED HELPER FUNCTIONS
+// ==========================================
 pub fn new_id() -> String {
     uuid::Uuid::new_v4().to_string()
 }
 
 pub fn now_timestamp() -> i64 {
-    Utc::now().timestamp()
+    chrono::Utc::now().timestamp()
 }
 
-// ============================================
-// Persona
-// ============================================
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Persona {
-    pub id: String,
-    pub name: String,
-    pub description: String,
-    pub is_default: bool,
-    pub created_at: i64,
-    pub updated_at: i64,
-    pub deleted_at: Option<i64>,
-    pub metadata: serde_json::Value,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CreatePersonaInput {
-    pub name: String,
-    #[serde(default)]
-    pub description: String,
-    #[serde(default)]
-    pub is_default: bool,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UpdatePersonaInput {
-    pub name: Option<String>,
-    pub description: Option<String>,
-    pub is_default: Option<bool>,
-}
-
-// ============================================
-// Character
-// ============================================
+// ==========================================
+// DATA STRUCTURES
+// ==========================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -71,7 +35,7 @@ pub struct Character {
     pub metadata: serde_json::Value,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateCharacterInput {
     pub name: String,
@@ -90,7 +54,7 @@ pub struct CreateCharacterInput {
     pub tags: Vec<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateCharacterInput {
     pub name: Option<String>,
@@ -103,9 +67,97 @@ pub struct UpdateCharacterInput {
     pub tags: Option<Vec<String>>,
 }
 
-// ============================================
-// Conversation
-// ============================================
+// Character Card V2 - wrapper structure
+// Note: No rename_all to accept both snake_case and camelCase field names
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CharacterCardV2 {
+    pub spec: String,
+    #[serde(alias = "specVersion")]
+    pub spec_version: String,
+    pub data: CharacterCardDataV2,
+}
+
+// Character Card V2 Data - the actual character data
+// Note: No rename_all to accept snake_case by default with camelCase aliases
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CharacterCardDataV2 {
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub personality: String,
+    #[serde(default)]
+    pub scenario: String,
+    #[serde(default, alias = "firstMes")]
+    pub first_mes: String,
+    #[serde(default, alias = "mesExample")]
+    pub mes_example: String,
+    #[serde(default, alias = "systemPrompt")]
+    pub system_prompt: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    // Additional V2 fields that may be present
+    #[serde(default, alias = "creatorNotes")]
+    pub creator_notes: Option<String>,
+    #[serde(default)]
+    pub creator: Option<String>,
+    #[serde(default, alias = "characterVersion")]
+    pub character_version: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CharacterCardV1 {
+    
+    // Support standard "name" OR "char_name"
+    #[serde(alias = "char_name")]
+    pub name: String,
+    
+    #[serde(default, alias = "char_persona")]
+    pub description: String,
+    
+    #[serde(default, alias = "char_personality")]
+    pub personality: String,
+    
+    #[serde(default, alias = "world_scenario")]
+    pub scenario: String,
+    
+    #[serde(default, alias = "char_greeting")]
+    pub first_mes: String,
+    
+    #[serde(default, alias = "example_dialogue")]
+    pub mes_example: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Persona {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub is_default: bool,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub deleted_at: Option<i64>,
+    pub metadata: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreatePersonaInput {
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub is_default: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdatePersonaInput {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub is_default: Option<bool>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -119,14 +171,11 @@ pub struct Conversation {
     pub updated_at: i64,
     pub deleted_at: Option<i64>,
     pub metadata: serde_json::Value,
-    // Joined data
-    #[serde(default)]
     pub characters: Vec<Character>,
-    #[serde(default)]
     pub lorebook_ids: Vec<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateConversationInput {
     pub character_ids: Vec<String>,
@@ -134,23 +183,29 @@ pub struct CreateConversationInput {
     pub persona_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateConversationInput {
     pub title: Option<String>,
     pub persona_id: Option<String>,
 }
 
-// ============================================
-// Message
-// ============================================
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
 pub enum AuthorType {
     User,
     Character,
     System,
+}
+
+impl ToString for AuthorType {
+    fn to_string(&self) -> String {
+        match self {
+            AuthorType::User => "user".to_string(),
+            AuthorType::Character => "character".to_string(),
+            AuthorType::System => "system".to_string(),
+        }
+    }
 }
 
 impl AuthorType {
@@ -161,13 +216,16 @@ impl AuthorType {
             AuthorType::System => "system",
         }
     }
-    
-    pub fn from_str(s: &str) -> Option<Self> {
+}
+
+impl FromStr for AuthorType {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "user" => Some(AuthorType::User),
-            "character" => Some(AuthorType::Character),
-            "system" => Some(AuthorType::System),
-            _ => None,
+            "user" => Ok(AuthorType::User),
+            "character" => Ok(AuthorType::Character),
+            "system" => Ok(AuthorType::System),
+            _ => Err(()),
         }
     }
 }
@@ -187,30 +245,23 @@ pub struct Message {
     pub generation_params: Option<serde_json::Value>,
     pub created_at: i64,
     pub metadata: serde_json::Value,
-    // Joined data for display
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub author_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub sibling_count: Option<i32>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SendMessageInput {
     pub conversation_id: String,
     pub content: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EditMessageInput {
     pub message_id: String,
     pub content: String,
 }
-
-// ============================================
-// Lorebook
-// ============================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -224,7 +275,6 @@ pub struct Lorebook {
     pub updated_at: i64,
     pub deleted_at: Option<i64>,
     pub metadata: serde_json::Value,
-    #[serde(default)]
     pub entries: Vec<LorebookEntry>,
 }
 
@@ -246,17 +296,15 @@ pub struct LorebookEntry {
     pub metadata: serde_json::Value,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateLorebookInput {
     pub name: String,
-    #[serde(default)]
-    pub description: String,
-    #[serde(default)]
-    pub is_global: bool,
+    pub description: Option<String>,
+    pub is_global: Option<bool>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateLorebookInput {
     pub name: Option<String>,
@@ -265,29 +313,21 @@ pub struct UpdateLorebookInput {
     pub is_enabled: Option<bool>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateEntryInput {
     pub lorebook_id: String,
     pub name: String,
     pub keywords: Vec<String>,
     pub content: String,
-    #[serde(default = "default_priority")]
-    pub priority: i32,
-    #[serde(default)]
-    pub case_sensitive: bool,
-    #[serde(default = "default_true")]
-    pub match_whole_word: bool,
-    #[serde(default = "default_insertion_position")]
-    pub insertion_position: String,
+    pub priority: Option<i32>,
+    pub case_sensitive: Option<bool>,
+    pub match_whole_word: Option<bool>,
+    pub insertion_position: Option<String>,
     pub token_budget: Option<i32>,
 }
 
-fn default_priority() -> i32 { 50 }
-fn default_true() -> bool { true }
-fn default_insertion_position() -> String { "after_system".to_string() }
-
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateEntryInput {
     pub name: Option<String>,
@@ -300,10 +340,6 @@ pub struct UpdateEntryInput {
     pub insertion_position: Option<String>,
     pub token_budget: Option<i32>,
 }
-
-// ============================================
-// Settings
-// ============================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -320,6 +356,12 @@ pub struct GenerationSettings {
     pub max_tokens: i32,
     pub top_p: f32,
     pub context_size: i32,
+    #[serde(default)]
+    pub lorebook_budget: Option<i32>,
+    #[serde(default)]
+    pub response_reserve: Option<i32>,
+    #[serde(default)]
+    pub example_dialogue_budget: Option<i32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -344,6 +386,9 @@ impl Default for Settings {
                 max_tokens: 512,
                 top_p: 0.9,
                 context_size: 8192,
+                lorebook_budget: Some(500),
+                response_reserve: Some(512),
+                example_dialogue_budget: Some(500),
             },
             app: AppSettings {
                 theme: "dark".to_string(),
@@ -357,12 +402,25 @@ impl Default for Settings {
     }
 }
 
-// ============================================
-// Queue Task
-// ============================================
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppInfo {
+    pub version: String,
+    pub data_dir: String,
+    pub model_loaded: bool,
+    pub model_path: Option<String>,
+}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelStatus {
+    pub status: String,
+    pub model_path: Option<String>,
+    pub model_loaded: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub enum QueueStatus {
     Pending,
     Processing,
@@ -371,25 +429,28 @@ pub enum QueueStatus {
     Cancelled,
 }
 
-impl QueueStatus {
-    pub fn as_str(&self) -> &'static str {
+impl ToString for QueueStatus {
+    fn to_string(&self) -> String {
         match self {
-            QueueStatus::Pending => "pending",
-            QueueStatus::Processing => "processing",
-            QueueStatus::Completed => "completed",
-            QueueStatus::Failed => "failed",
-            QueueStatus::Cancelled => "cancelled",
+            QueueStatus::Pending => "pending".to_string(),
+            QueueStatus::Processing => "processing".to_string(),
+            QueueStatus::Completed => "completed".to_string(),
+            QueueStatus::Failed => "failed".to_string(),
+            QueueStatus::Cancelled => "cancelled".to_string(),
         }
     }
-    
-    pub fn from_str(s: &str) -> Option<Self> {
+}
+
+impl FromStr for QueueStatus {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "pending" => Some(QueueStatus::Pending),
-            "processing" => Some(QueueStatus::Processing),
-            "completed" => Some(QueueStatus::Completed),
-            "failed" => Some(QueueStatus::Failed),
-            "cancelled" => Some(QueueStatus::Cancelled),
-            _ => None,
+            "pending" => Ok(QueueStatus::Pending),
+            "processing" => Ok(QueueStatus::Processing),
+            "completed" => Ok(QueueStatus::Completed),
+            "failed" => Ok(QueueStatus::Failed),
+            "cancelled" => Ok(QueueStatus::Cancelled),
+            _ => Err(()),
         }
     }
 }
@@ -410,12 +471,8 @@ pub struct QueueTask {
     pub metadata: serde_json::Value,
 }
 
-// ============================================
-// Download
-// ============================================
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub enum DownloadStatus {
     Pending,
     Downloading,
@@ -425,27 +482,30 @@ pub enum DownloadStatus {
     Paused,
 }
 
-impl DownloadStatus {
-    pub fn as_str(&self) -> &'static str {
+impl ToString for DownloadStatus {
+    fn to_string(&self) -> String {
         match self {
-            DownloadStatus::Pending => "pending",
-            DownloadStatus::Downloading => "downloading",
-            DownloadStatus::Completed => "completed",
-            DownloadStatus::Failed => "failed",
-            DownloadStatus::Cancelled => "cancelled",
-            DownloadStatus::Paused => "paused",
+            DownloadStatus::Pending => "pending".to_string(),
+            DownloadStatus::Downloading => "downloading".to_string(),
+            DownloadStatus::Completed => "completed".to_string(),
+            DownloadStatus::Failed => "failed".to_string(),
+            DownloadStatus::Cancelled => "cancelled".to_string(),
+            DownloadStatus::Paused => "paused".to_string(),
         }
     }
-    
-    pub fn from_str(s: &str) -> Option<Self> {
+}
+
+impl FromStr for DownloadStatus {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "pending" => Some(DownloadStatus::Pending),
-            "downloading" => Some(DownloadStatus::Downloading),
-            "completed" => Some(DownloadStatus::Completed),
-            "failed" => Some(DownloadStatus::Failed),
-            "cancelled" => Some(DownloadStatus::Cancelled),
-            "paused" => Some(DownloadStatus::Paused),
-            _ => None,
+            "pending" => Ok(DownloadStatus::Pending),
+            "downloading" => Ok(DownloadStatus::Downloading),
+            "completed" => Ok(DownloadStatus::Completed),
+            "failed" => Ok(DownloadStatus::Failed),
+            "cancelled" => Ok(DownloadStatus::Cancelled),
+            "paused" => Ok(DownloadStatus::Paused),
+            _ => Err(()),
         }
     }
 }
@@ -465,107 +525,12 @@ pub struct Download {
     pub error_message: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StartDownloadInput {
     pub url: String,
     pub checksum: Option<String>,
 }
-
-// ============================================
-// Events (for Tauri emit)
-// ============================================
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ChatTokenEvent {
-    pub conversation_id: String,
-    pub message_id: String,
-    pub token: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ChatCompleteEvent {
-    pub conversation_id: String,
-    pub message: Message,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ChatErrorEvent {
-    pub conversation_id: String,
-    pub message_id: Option<String>,
-    pub error: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DownloadProgressEvent {
-    pub id: String,
-    pub downloaded_bytes: i64,
-    pub total_bytes: i64,
-    pub speed_bps: i64,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ModelStatusEvent {
-    pub status: String, // "loading", "ready", "error", "not_found"
-    pub message: Option<String>,
-}
-
-// ============================================
-// Character Card Import (TavernAI V2)
-// ============================================
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct CharacterCardV2 {
-    pub spec: Option<String>,
-    pub spec_version: Option<String>,
-    pub data: CharacterCardData,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct CharacterCardData {
-    pub name: String,
-    #[serde(default)]
-    pub description: String,
-    #[serde(default)]
-    pub personality: String,
-    #[serde(default)]
-    pub first_mes: String,
-    #[serde(default)]
-    pub mes_example: String,
-    #[serde(default)]
-    pub scenario: String,
-    #[serde(default)]
-    pub system_prompt: String,
-    #[serde(default)]
-    pub tags: Vec<String>,
-    #[serde(default)]
-    pub creator_notes: String,
-}
-
-// Legacy V1 format fallback
-#[derive(Debug, Clone, Deserialize)]
-pub struct CharacterCardV1 {
-    pub name: String,
-    #[serde(default)]
-    pub description: String,
-    #[serde(default)]
-    pub personality: String,
-    #[serde(default)]
-    pub first_mes: String,
-    #[serde(default)]
-    pub mes_example: String,
-    #[serde(default)]
-    pub scenario: String,
-}
-
-// ============================================
-// Export/Import Types
-// ============================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -588,19 +553,42 @@ pub struct ExportedConversation {
     pub persona: Option<Persona>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+// Events
+#[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AppInfo {
-    pub version: String,
-    pub data_dir: String,
-    pub model_loaded: bool,
-    pub model_path: Option<String>,
+pub struct ChatTokenEvent {
+    pub conversation_id: String,
+    pub message_id: String,
+    pub token: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ModelStatus {
+pub struct ChatCompleteEvent {
+    pub conversation_id: String,
+    pub message: Message,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatErrorEvent {
+    pub conversation_id: String,
+    pub message_id: Option<String>,
+    pub error: String,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadProgressEvent {
+    pub id: String,
+    pub downloaded_bytes: i64,
+    pub total_bytes: i64,
+    pub speed_bps: i64,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelStatusEvent {
     pub status: String,
-    pub model_path: Option<String>,
-    pub model_loaded: bool,
+    pub message: Option<String>,
 }

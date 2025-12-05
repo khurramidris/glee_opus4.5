@@ -1,152 +1,194 @@
-mod error;
-mod entities;
-mod database;
-mod repositories;
-mod setup;
-mod services;
-mod commands;
-mod workers;
-mod sidecar;
-mod state;
-
+use tauri::Builder;
 use tauri::Manager;
-use tokio::sync::mpsc;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use std::sync::Arc;
+use tokio::sync::Notify;
 
-pub use error::{AppError, CommandError};
-pub use state::AppState;
+// =========================================================
+// MODULE DECLARATIONS
+// =========================================================
+pub mod commands;
+pub mod database;
+pub mod entities;
+pub mod error;
+pub mod repositories;
+pub mod services;
+pub mod setup;
+pub mod sidecar;
+pub mod state;
+pub mod workers;
 
+// =========================================================
+// ENTRY POINT
+// =========================================================
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Initialize logging
-    tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::try_from_default_env()
-            .unwrap_or_else(|_| "glee=debug,info".into()))
-        .with(tracing_subscriber::fmt::layer())
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::from_default_env()
+                .add_directive("glee=debug".parse().unwrap())
+                .add_directive("info".parse().unwrap())
+        )
         .init();
-
-    tracing::info!("Starting Glee...");
-
-    tauri::Builder::default()
+    
+    let builder = Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
-            let handle = app.handle().clone();
+            tracing::info!("Starting Glee application...");
             
-            // Initialize paths
-            let paths = setup::paths::AppPaths::new(&handle)?;
-            tracing::info!("App data dir: {:?}", paths.data_dir);
+            let paths = crate::setup::paths::AppPaths::new(app.handle())?;
+            let db = crate::database::Database::new(&paths.database_path)?;
             
-            // Initialize database
-            let db = database::Database::new(&paths.database_path)?;
+            crate::setup::migrations::run_migrations(&db)?;
             
-            // Run migrations
-            setup::migrations::run_migrations(&db)?;
-            tracing::info!("Database initialized");
+            let (queue_tx, queue_rx) = tokio::sync::mpsc::channel(100);
+            let (download_tx, download_rx) = tokio::sync::mpsc::channel(100);
             
-            // Create channels for workers
-            let (queue_tx, queue_rx) = mpsc::channel(100);
-            let (download_tx, download_rx) = mpsc::channel(100);
+            let shutdown_notify = Arc::new(Notify::new());
             
-            // Create app state
-            let state = AppState::new(
-                db,
-                paths,
-                queue_tx,
+            let state = crate::state::AppState::new(
+                db, 
+                paths, 
+                queue_tx, 
                 download_tx,
+                shutdown_notify.clone()
             );
-            
-            // Store state
             app.manage(state.clone());
             
-            // Spawn workers
-            let worker_state = state.clone();
-            let worker_handle = handle.clone();
+            let state_for_seed = state.clone();
             tauri::async_runtime::spawn(async move {
-                workers::queue_worker::run(worker_state, worker_handle, queue_rx).await;
-            });
-            
-            let download_state = state.clone();
-            let download_handle = handle.clone();
-            tauri::async_runtime::spawn(async move {
-                workers::download_worker::run(download_state, download_handle, download_rx).await;
-            });
-            
-            // Seed default data
-            tauri::async_runtime::block_on(async {
-                if let Err(e) = setup::seed_defaults(&state).await {
+                if let Err(e) = crate::setup::seed_defaults(&state_for_seed).await {
                     tracing::error!("Failed to seed defaults: {}", e);
                 }
             });
             
-            tracing::info!("Glee started successfully");
+            let app_handle = app.handle().clone();
+            let state_clone = state.clone();
+            let shutdown_clone = shutdown_notify.clone();
+            tauri::async_runtime::spawn(async move {
+                crate::workers::queue_worker::run(state_clone, app_handle, queue_rx, shutdown_clone).await;
+            });
+            
+            let app_handle = app.handle().clone();
+            let state_clone = state.clone();
+            let shutdown_clone = shutdown_notify.clone();
+            tauri::async_runtime::spawn(async move {
+                crate::workers::download_worker::run(state_clone, app_handle, download_rx, shutdown_clone).await;
+            });
+            
+            tracing::info!("Glee setup complete");
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             // Character commands
-            commands::character::create_character,
-            commands::character::get_character,
-            commands::character::list_characters,
-            commands::character::update_character,
-            commands::character::delete_character,
-            commands::character::import_character_card,
+            crate::commands::character::create_character,
+            crate::commands::character::get_character,
+            crate::commands::character::list_characters,
+            crate::commands::character::update_character,
+            crate::commands::character::delete_character,
+            crate::commands::character::import_character_card,
             // Persona commands
-            commands::persona::create_persona,
-            commands::persona::get_persona,
-            commands::persona::list_personas,
-            commands::persona::update_persona,
-            commands::persona::delete_persona,
-            commands::persona::set_default_persona,
+            crate::commands::persona::create_persona,
+            crate::commands::persona::get_persona,
+            crate::commands::persona::list_personas,
+            crate::commands::persona::update_persona,
+            crate::commands::persona::delete_persona,
+            crate::commands::persona::set_default_persona,
             // Conversation commands
-            commands::conversation::create_conversation,
-            commands::conversation::get_conversation,
-            commands::conversation::list_conversations,
-            commands::conversation::delete_conversation,
-            commands::conversation::get_conversation_messages,
-            commands::conversation::update_conversation,
+            crate::commands::conversation::create_conversation,
+            crate::commands::conversation::get_conversation,
+            crate::commands::conversation::list_conversations,
+            crate::commands::conversation::update_conversation,
+            crate::commands::conversation::delete_conversation,
+            crate::commands::conversation::get_conversation_messages,
+            crate::commands::conversation::find_conversation_by_character,
             // Message commands
-            commands::message::send_message,
-            commands::message::regenerate_message,
-            commands::message::edit_message,
-            commands::message::delete_message,
-            commands::message::get_branch_siblings,
-            commands::message::switch_branch,
-            commands::message::stop_generation,
+            crate::commands::message::send_message,
+            crate::commands::message::regenerate_message,
+            crate::commands::message::edit_message,
+            crate::commands::message::delete_message,
+            crate::commands::message::get_branch_siblings,
+            crate::commands::message::switch_branch,
+            crate::commands::message::stop_generation,
             // Lorebook commands
-            commands::lorebook::create_lorebook,
-            commands::lorebook::get_lorebook,
-            commands::lorebook::list_lorebooks,
-            commands::lorebook::update_lorebook,
-            commands::lorebook::delete_lorebook,
-            commands::lorebook::create_entry,
-            commands::lorebook::update_entry,
-            commands::lorebook::delete_entry,
-            commands::lorebook::attach_to_conversation,
-            commands::lorebook::detach_from_conversation,
+            crate::commands::lorebook::create_lorebook,
+            crate::commands::lorebook::get_lorebook,
+            crate::commands::lorebook::list_lorebooks,
+            crate::commands::lorebook::update_lorebook,
+            crate::commands::lorebook::delete_lorebook,
+            crate::commands::lorebook::create_entry,
+            crate::commands::lorebook::update_entry,
+            crate::commands::lorebook::delete_entry,
+            crate::commands::lorebook::attach_to_conversation,
+            crate::commands::lorebook::detach_from_conversation,
             // Settings commands
-            commands::settings::get_settings,
-            commands::settings::update_setting,
-            commands::settings::get_setting,
+            crate::commands::settings::get_settings,
+            crate::commands::settings::get_setting,
+            crate::commands::settings::update_setting,
+            crate::commands::settings::update_settings_batch,
             // System commands
-            commands::system::get_app_info,
-            commands::system::get_model_status,
-            commands::system::start_sidecar,
-            commands::system::stop_sidecar,
-            commands::system::health_check,
+            crate::commands::system::get_app_info,
+            crate::commands::system::get_model_status,
+            crate::commands::system::start_sidecar,
+            crate::commands::system::stop_sidecar,
+            crate::commands::system::restart_sidecar,
+            crate::commands::system::health_check,
             // Download commands
-            commands::download::start_model_download,
-            commands::download::pause_download,
-            commands::download::resume_download,
-            commands::download::cancel_download,
-            commands::download::get_download_status,
+            crate::commands::download::start_model_download,
+            crate::commands::download::pause_download,
+            crate::commands::download::resume_download,
+            crate::commands::download::cancel_download,
+            crate::commands::download::get_download_status,
             // Export commands
-            commands::export::export_character,
-            commands::export::export_conversation,
-            commands::export::export_all_data,
-            commands::export::import_character,
-            commands::export::import_data,
-        ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+            crate::commands::export::export_character,
+            crate::commands::export::export_conversation,
+            crate::commands::export::export_all_data,
+            crate::commands::export::import_character,
+            crate::commands::export::import_data,
+        ]);
+
+    builder
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            match event {
+                tauri::RunEvent::ExitRequested { .. } => {
+                    tracing::info!("Exit requested, initiating cleanup...");
+                    
+                    let state = app_handle.state::<crate::state::AppState>();
+                    
+                    // Signal shutdown to all workers
+                    state.shutdown();
+                    
+                    // Take and stop sidecar synchronously
+                    if let Some(sidecar_handle) = state.take_sidecar() {
+                        tracing::info!("Stopping sidecar process...");
+                        sidecar_handle.cancel_generation();
+                        
+                        // Block until sidecar is stopped
+                        std::thread::spawn(move || {
+                            let rt = tokio::runtime::Builder::new_current_thread()
+                                .enable_all()
+                                .build()
+                                .unwrap();
+                            
+                            rt.block_on(async {
+                                if let Err(e) = crate::sidecar::stop_sidecar(sidecar_handle).await {
+                                    tracing::error!("Failed to stop sidecar: {}", e);
+                                } else {
+                                    tracing::info!("Sidecar stopped successfully");
+                                }
+                            });
+                        }).join().ok();
+                    }
+                    
+                    tracing::info!("Cleanup complete");
+                }
+                tauri::RunEvent::Exit => {
+                    tracing::info!("Application exited");
+                }
+                _ => {}
+            }
+        });
 }

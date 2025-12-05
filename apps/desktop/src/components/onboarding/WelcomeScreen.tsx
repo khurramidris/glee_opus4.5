@@ -4,7 +4,6 @@ import { DownloadProgress } from './DownloadProgress';
 import { SetupComplete } from './SetupComplete';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { DEFAULT_MODEL_URL } from '@/lib/constants';
 
 type OnboardingStep = 'welcome' | 'download' | 'complete';
 

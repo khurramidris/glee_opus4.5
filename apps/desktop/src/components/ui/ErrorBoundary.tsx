@@ -9,24 +9,30 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+  errorInfo: ErrorInfo | null;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, errorInfo: null };
   }
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): Partial<State> {
     return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Error caught by boundary:', error, errorInfo);
+    this.setState({ errorInfo });
   }
 
   handleReset = () => {
-    this.setState({ hasError: false, error: null });
+    this.setState({ hasError: false, error: null, errorInfo: null });
+  };
+
+  handleReload = () => {
+    window.location.reload();
   };
 
   render() {
@@ -50,10 +56,32 @@ export class ErrorBoundary extends Component<Props, State> {
           <h2 className="text-xl font-semibold text-surface-100 mb-2">
             Something went wrong
           </h2>
-          <p className="text-surface-400 mb-4 max-w-md">
+          <p className="text-surface-400 mb-2 max-w-md">
             {this.state.error?.message || 'An unexpected error occurred'}
           </p>
-          <Button onClick={this.handleReset}>Try Again</Button>
+
+          {/* Show stack trace in development */}
+          {import.meta.env.DEV && this.state.errorInfo && (
+            <details className="mb-4 max-w-lg w-full text-left">
+              <summary className="text-sm text-surface-500 cursor-pointer hover:text-surface-300">
+                Show details
+              </summary>
+              <pre className="mt-2 p-4 bg-surface-800 rounded-lg text-xs text-surface-400 overflow-auto max-h-48">
+                {this.state.error?.stack}
+                {'\n\nComponent Stack:\n'}
+                {this.state.errorInfo.componentStack}
+              </pre>
+            </details>
+          )}
+
+          <div className="flex gap-3">
+            <Button variant="secondary" onClick={this.handleReset}>
+              Try Again
+            </Button>
+            <Button onClick={this.handleReload}>
+              Reload Page
+            </Button>
+          </div>
         </div>
       );
     }

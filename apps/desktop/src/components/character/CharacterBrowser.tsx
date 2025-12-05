@@ -7,13 +7,16 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Spinner } from '@/components/ui/Spinner';
 import { Modal } from '@/components/ui/Modal';
+import { commands } from '@/lib/commands';
 
 export function CharacterBrowser() {
   const navigate = useNavigate();
   const { characters, isLoading, deleteCharacter } = useCharacters();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [isStartingChat, setIsStartingChat] = useState<string | null>(null);
 
   const filteredCharacters = characters.filter((char) =>
     char.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -22,15 +25,22 @@ export function CharacterBrowser() {
   );
 
   const handleStartChat = async (characterId: string) => {
-    // Create new conversation with this character
-    const { commands } = await import('@/lib/commands');
+    setIsStartingChat(characterId);
     try {
-      const conversation = await commands.createConversation({
-        characterIds: [characterId],
-      });
-      navigate(`/chat/${conversation.id}`);
+      const existing = await commands.findConversationByCharacter(characterId);
+
+      if (existing) {
+        navigate(`/chat/${existing.id}`);
+      } else {
+        const conversation = await commands.createConversation({
+          characterIds: [characterId],
+        });
+        navigate(`/chat/${conversation.id}`);
+      }
     } catch (e) {
-      console.error('Failed to create conversation:', e);
+      console.error('Failed to start conversation:', e);
+    } finally {
+      setIsStartingChat(null);
     }
   };
 
@@ -50,7 +60,7 @@ export function CharacterBrowser() {
   return (
     <div className="h-full flex flex-col">
       {/* Search and Actions Bar */}
-      <div className="flex items-center gap-4 p-4 border-b border-surface-700">
+      <div className="flex items-center gap-4 p-4 border-b border-surface-700 bg-surface-900">
         <div className="flex-1 max-w-md">
           <Input
             placeholder="Search characters..."
@@ -93,13 +103,14 @@ export function CharacterBrowser() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredCharacters.map((character) => (
-              <CharacterCard
-                key={character.id}
-                character={character}
-                onChat={() => handleStartChat(character.id)}
-                onEdit={() => navigate(`/characters/${character.id}/edit`)}
-                onDelete={() => setDeleteConfirm(character.id)}
-              />
+              <div key={character.id} className={isStartingChat === character.id ? 'opacity-50 pointer-events-none' : ''}>
+                <CharacterCard
+                  character={character}
+                  onChat={() => handleStartChat(character.id)}
+                  onEdit={() => navigate(`/characters/${character.id}/edit`)}
+                  onDelete={() => setDeleteConfirm(character.id)}
+                />
+              </div>
             ))}
           </div>
         )}

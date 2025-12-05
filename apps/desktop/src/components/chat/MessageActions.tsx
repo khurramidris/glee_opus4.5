@@ -1,9 +1,12 @@
+import { useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { useUIStore } from '@/stores/uiStore';
 
 interface MessageActionsProps {
   visible: boolean;
   isUser: boolean;
+  content: string;
   onEdit: () => void;
   onRegenerate: () => void;
 }
@@ -11,9 +14,22 @@ interface MessageActionsProps {
 export function MessageActions({
   visible,
   isUser,
+  content,
   onEdit,
   onRegenerate,
 }: MessageActionsProps) {
+  const { addToast } = useUIStore();
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      addToast({ type: 'success', message: 'Copied to clipboard' });
+    } catch (e) {
+      console.error(e);
+      addToast({ type: 'error', message: 'Failed to copy text' });
+    }
+  }, [content, addToast]);
+
   return (
     <AnimatePresence>
       {visible && (
@@ -49,9 +65,9 @@ export function MessageActions({
           )}
           
           <button
+            onClick={handleCopy}
             className="p-1.5 text-surface-500 hover:text-surface-300 hover:bg-surface-700 rounded transition-colors"
             title="Copy message"
-            onClick={() => navigator.clipboard.writeText('')}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />

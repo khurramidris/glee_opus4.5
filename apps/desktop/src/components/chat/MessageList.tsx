@@ -1,109 +1,78 @@
 import { useRef, useEffect } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
 import type { Message } from '@/types';
 import { MessageBubble } from './MessageBubble';
 import { StreamingMessage } from './StreamingMessage';
 
 interface MessageListProps {
   messages: Message[];
-  streamingMessages: Map<string, string>;
+  streamingMessages: Record<string, { content: string; startedAt: number }>;
+  streamingContent: (messageId: string) => string;
   onRegenerate: (messageId: string) => void;
   onEdit: (messageId: string, content: string) => void;
   onSwitchBranch: (messageId: string) => void;
   getBranchSiblings: (messageId: string) => Promise<Message[]>;
+  characterName: string;
 }
 
 export function MessageList({
   messages,
   streamingMessages,
+  streamingContent,
   onRegenerate,
   onEdit,
   onSwitchBranch,
   getBranchSiblings,
+  characterName,
 }: MessageListProps) {
-  const parentRef = useRef<HTMLDivElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  // Combine regular messages with streaming messages
-  const allMessages = [...messages];
-  const streamingIds = Array.from(streamingMessages.keys());
-
-  const virtualizer = useVirtualizer({
-    count: allMessages.length + streamingIds.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 100,
-    overscan: 5,
-  });
-
-  // Auto-scroll to bottom when new messages arrive
+  const containerRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  
+  // Get streaming message IDs
+  const streamingIds = Object.keys(streamingMessages);
+  
+  // Debug logging
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollIntoView({ behavior: 'smooth' });
+    console.log('[MessageList] Render - messages:', messages.length, 'streaming:', streamingIds.length);
+  }, [messages.length, streamingIds.length]);
+  
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    if (bottomRef.current) {
+      bottomRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages.length, streamingMessages.size]);
+  }, [messages.length, streamingIds.length, streamingMessages]);
 
   return (
     <div
-      ref={parentRef}
-      className="h-full overflow-y-auto px-4 py-4"
+      ref={containerRef}
+      className="h-full overflow-y-auto px-4 py-4 space-y-4"
     >
-      <div
-        style={{
-          height: `${virtualizer.getTotalSize()}px`,
-          width: '100%',
-          position: 'relative',
-        }}
-      >
-        {virtualizer.getVirtualItems().map((virtualRow) => {
-          const index = virtualRow.index;
-          const isStreaming = index >= allMessages.length;
-
-          if (isStreaming) {
-            const streamIndex = index - allMessages.length;
-            const messageId = streamingIds[streamIndex];
-            const content = streamingMessages.get(messageId) || '';
-
-            return (
-              <div
-                key={messageId}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  transform: `translateY(${virtualRow.start}px)`,
-                }}
-              >
-                <StreamingMessage content={content} />
-              </div>
-            );
-          }
-
-          const message = allMessages[index];
-
-          return (
-            <div
-              key={message.id}
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                transform: `translateY(${virtualRow.start}px)`,
-              }}
-            >
-              <MessageBubble
-                message={message}
-                onRegenerate={() => onRegenerate(message.id)}
-                onEdit={(content) => onEdit(message.id, content)}
-                onSwitchBranch={onSwitchBranch}
-                getBranchSiblings={getBranchSiblings}
-              />
-            </div>
-          );
-        })}
-      </div>
-      <div ref={scrollRef} />
+      {/* Render all messages */}
+      {messages.map((message) => (
+        <MessageBubble
+          key={message.id}
+          message={message}
+          onRegenerate={() => onRegenerate(message.id)}
+          onEdit={(content) => onEdit(message.id, content)}
+          onSwitchBranch={onSwitchBranch}
+          getBranchSiblings={getBranchSiblings}
+        />
+      ))}
+      
+      {/* Render streaming messages */}
+      {streamingIds.map((messageId) => {
+        const content = streamingContent(messageId);
+        return (
+          <StreamingMessage
+            key={`streaming-${messageId}`}
+            content={content}
+            characterName={characterName}
+          />
+        );
+      })}
+      
+      {/* Scroll anchor */}
+      <div ref={bottomRef} />
     </div>
   );
 }

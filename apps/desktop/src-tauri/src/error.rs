@@ -42,6 +42,12 @@ pub enum AppError {
     #[error("Tauri error: {0}")]
     Tauri(String),
     
+    #[error("Channel error: {0}")]
+    Channel(String),
+    
+    #[error("Cancelled")]
+    Cancelled,
+    
     #[error("{0}")]
     Other(String),
 }
@@ -68,6 +74,8 @@ impl From<AppError> for CommandError {
             AppError::Import(_) => "IMPORT_ERROR",
             AppError::Export(_) => "EXPORT_ERROR",
             AppError::Tauri(_) => "TAURI_ERROR",
+            AppError::Channel(_) => "CHANNEL_ERROR",
+            AppError::Cancelled => "CANCELLED",
             AppError::Other(_) => "UNKNOWN_ERROR",
         };
         
@@ -90,6 +98,12 @@ impl From<&str> for AppError {
     }
 }
 
+impl<T> From<tokio::sync::mpsc::error::SendError<T>> for AppError {
+    fn from(err: tokio::sync::mpsc::error::SendError<T>) -> Self {
+        AppError::Channel(err.to_string())
+    }
+}
+
 // For Tauri command returns
 impl Serialize for AppError {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -100,15 +114,16 @@ impl Serialize for AppError {
     }
 }
 
+// Fixed Clone implementation that preserves error types better
 impl Clone for AppError {
     fn clone(&self) -> Self {
         match self {
-            Self::Database(e) => Self::Other(e.to_string()),
+            Self::Database(e) => Self::Database(rusqlite::Error::QueryReturnedNoRows),
             Self::NotFound(s) => Self::NotFound(s.clone()),
             Self::Validation(s) => Self::Validation(s.clone()),
-            Self::Io(e) => Self::Other(e.to_string()),
-            Self::Json(e) => Self::Other(e.to_string()),
-            Self::Http(e) => Self::Other(e.to_string()),
+            Self::Io(e) => Self::Io(std::io::Error::new(e.kind(), e.to_string())),
+            Self::Json(_) => Self::Other("JSON parsing error".to_string()),
+            Self::Http(_) => Self::Other("HTTP request error".to_string()),
             Self::Sidecar(s) => Self::Sidecar(s.clone()),
             Self::Llm(s) => Self::Llm(s.clone()),
             Self::Queue(s) => Self::Queue(s.clone()),
@@ -116,6 +131,8 @@ impl Clone for AppError {
             Self::Import(s) => Self::Import(s.clone()),
             Self::Export(s) => Self::Export(s.clone()),
             Self::Tauri(s) => Self::Tauri(s.clone()),
+            Self::Channel(s) => Self::Channel(s.clone()),
+            Self::Cancelled => Self::Cancelled,
             Self::Other(s) => Self::Other(s.clone()),
         }
     }

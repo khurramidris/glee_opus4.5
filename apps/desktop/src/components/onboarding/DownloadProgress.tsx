@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useDownload } from '@/hooks/useDownload';
 import { useUIStore } from '@/stores/uiStore';
 import { Card } from '@/components/ui/Card';
@@ -13,29 +13,30 @@ interface DownloadProgressProps {
 }
 
 export function DownloadProgress({ onComplete, onSkip }: DownloadProgressProps) {
-  const { 
-    currentDownload, 
-    progress, 
-    isDownloading, 
+  const {
+    currentDownload,
+    progress,
+    isDownloading,
     error,
-    startDownload, 
-    pauseDownload, 
-    resumeDownload, 
+    startDownload,
+    pauseDownload,
+    resumeDownload,
     cancelDownload,
     setComplete,
   } = useDownload();
   const { addToast } = useUIStore();
-  
-  const [hasStarted, setHasStarted] = useState(false);
+
+  // Use a ref to track if we've initiated the download to prevent React StrictMode double-fire
+  const downloadInitiated = useRef(false);
 
   useEffect(() => {
-    if (!hasStarted) {
-      setHasStarted(true);
+    if (!downloadInitiated.current) {
+      downloadInitiated.current = true;
       startDownload({ url: DEFAULT_MODEL_URL }).catch((e) => {
         addToast({ type: 'error', message: `Failed to start download: ${e}` });
       });
     }
-  }, [hasStarted, startDownload, addToast]);
+  }, [startDownload, addToast]);
 
   useEffect(() => {
     if (currentDownload?.status === 'completed') {
@@ -44,8 +45,8 @@ export function DownloadProgress({ onComplete, onSkip }: DownloadProgressProps) 
     }
   }, [currentDownload?.status, onComplete, setComplete]);
 
-  const percentage = progress 
-    ? Math.round((progress.downloadedBytes / progress.totalBytes) * 100) 
+  const percentage = progress
+    ? Math.round((progress.downloadedBytes / Math.max(progress.totalBytes, 1)) * 100)
     : 0;
 
   const handlePauseResume = () => {
@@ -76,7 +77,7 @@ export function DownloadProgress({ onComplete, onSkip }: DownloadProgressProps) 
         {/* Progress */}
         <div className="space-y-4 mb-6">
           <Progress value={percentage} size="lg" showLabel />
-          
+
           {progress && (
             <div className="flex justify-between text-sm text-surface-400">
               <span>
@@ -116,8 +117,8 @@ export function DownloadProgress({ onComplete, onSkip }: DownloadProgressProps) 
           <Button variant="secondary" onClick={handleCancel} className="flex-1">
             Cancel
           </Button>
-          <Button 
-            variant="secondary" 
+          <Button
+            variant="secondary"
             onClick={handlePauseResume}
             className="flex-1"
           >

@@ -77,7 +77,7 @@ export function GroupChatCreator({ isOpen, onClose }: GroupChatCreatorProps) {
             {characters.map((char) => {
               const isSelected = selectedCharacterIds.includes(char.id);
               const order = selectedCharacterIds.indexOf(char.id) + 1;
-              
+
               return (
                 <button
                   key={char.id}
@@ -136,91 +136,3 @@ export function GroupChatCreator({ isOpen, onClose }: GroupChatCreatorProps) {
     </Modal>
   );
 }
-```
-
----
-
-## Part 3B-2A Complete
-
-**Files created: 15**
-
-```
-apps/desktop/src/components/
-├── character/
-│   ├── CharacterBrowser.tsx
-│   ├── CharacterCard.tsx
-│   ├── CharacterCreator.tsx
-│   ├── CharacterEditor.tsx
-│   ├── CharacterDetail.tsx
-│   ├── ImportDialog.tsx
-│   └── AvatarUploader.tsx
-├── persona/
-│   ├── PersonaList.tsx
-│   ├── PersonaCard.tsx
-│   ├── PersonaEditor.tsx
-│   └── PersonaSelector.tsx
-└── conversation/
-    ├── ConversationList.tsx
-    ├── ConversationItem.tsx
-    ├── ConversationCreator.tsx
-    └── GroupChatCreator.tsx
-```
-
-**What exists now:**
-- Character browser with search, import, CRUD
-- Character cards with chat/edit/delete actions
-- Character creator with tabs (Basic, Personality, Advanced)
-- Character editor for modifying existing characters
-- TavernAI/SillyTavern character card import (PNG with tEXt chunk + JSON)
-- Avatar uploader with preview
-- Persona list with CRUD operations
-- Persona selector dropdown for conversations
-- Conversation list with recent chats
-- Single character conversation creator
-- Group chat creator (multi-character selection)
-
-**What's next in Part 3B-2B:**
-- Lorebook components (List, Editor, EntryEditor, KeywordInput, LorebookAttacher)
-- Settings components (Panel, GenerationSettings, ModelSettings, AppearanceSettings, DataSettings)
-- Onboarding components (WelcomeScreen, DownloadProgress, SetupComplete)
-
----
-
-**Ready for Part 3B-2B?**
- 
-# GLEE Implementation — Part 3B-2B of 4
-## React Components: Lorebook, Settings & Onboarding
-
----
-
-## Overview
-
-Part 3B-2B completes the React frontend with:
-- Lorebook components
-- Settings components  
-- Onboarding components
-
-After this part: Complete React frontend ready to combine with backend.
-
----
-
-## Files in Part 3B-2B
-
-```
-apps/desktop/src/components/
-├── lorebook/
-│   ├── LorebookList.tsx
-│   ├── LorebookEditor.tsx
-│   ├── EntryEditor.tsx
-│   ├── KeywordInput.tsx
-│   └── LorebookAttacher.tsx
-├── settings/
-│   ├── SettingsPanel.tsx
-│   ├── GenerationSettings.tsx
-│   ├── ModelSettings.tsx
-│   ├── AppearanceSettings.tsx
-│   └── DataSettings.tsx
-└── onboarding/
-    ├── WelcomeScreen.tsx
-    ├── DownloadProgress.tsx
-    └── SetupComplete.tsx
