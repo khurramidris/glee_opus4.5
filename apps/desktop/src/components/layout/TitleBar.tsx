@@ -4,7 +4,7 @@ import type { UnlistenFn } from '@tauri-apps/api/event';
 
 export function TitleBar() {
   const [isMaximized, setIsMaximized] = useState(false);
-  
+
   useEffect(() => {
     const appWindow = getCurrentWindow();
     let unlistenFn: UnlistenFn | null = null;
@@ -14,7 +14,7 @@ export function TitleBar() {
       // Initial state
       const maximized = await appWindow.isMaximized();
       if (mounted) setIsMaximized(maximized);
-      
+
       // Listen for resize
       unlistenFn = await appWindow.onResized(async () => {
         const maximized = await appWindow.isMaximized();
@@ -37,14 +37,14 @@ export function TitleBar() {
   const handleClose = () => getCurrentWindow().close();
 
   return (
-    <div data-tauri-drag-region className="h-8 flex items-center justify-between px-4 bg-surface-900 border-b border-surface-700 select-none">
-      <div className="text-xs font-medium text-surface-400 pointer-events-none">
+    <div data-tauri-drag-region className="h-8 flex items-center justify-between px-4 bg-white border-b border-surface-200 select-none">
+      <div className="text-xs font-medium text-surface-500 pointer-events-none">
         Glee
       </div>
       <div className="flex items-center gap-2">
         <button
           onClick={handleMinimize}
-          className="p-1.5 hover:bg-surface-700 text-surface-400 hover:text-surface-100 rounded"
+          className="p-1.5 hover:bg-surface-100 text-surface-500 hover:text-surface-900 rounded"
         >
           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
@@ -52,7 +52,7 @@ export function TitleBar() {
         </button>
         <button
           onClick={handleMaximize}
-          className="p-1.5 hover:bg-surface-700 text-surface-400 hover:text-surface-100 rounded"
+          className="p-1.5 hover:bg-surface-100 text-surface-500 hover:text-surface-900 rounded"
         >
           {isMaximized ? (
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -66,7 +66,7 @@ export function TitleBar() {
         </button>
         <button
           onClick={handleClose}
-          className="p-1.5 hover:bg-red-600 text-surface-400 hover:text-white rounded"
+          className="p-1.5 hover:bg-red-500 text-surface-500 hover:text-white rounded"
         >
           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

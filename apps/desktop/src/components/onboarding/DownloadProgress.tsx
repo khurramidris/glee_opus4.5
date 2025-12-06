@@ -63,13 +63,13 @@ export function DownloadProgress({ onComplete, onSkip }: DownloadProgressProps) 
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-surface-900 p-8">
+    <div className="min-h-screen flex items-center justify-center bg-surface-50 p-8">
       <Card className="max-w-lg w-full">
         <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-surface-100 mb-2">
+          <h1 className="text-2xl font-bold text-surface-900 mb-2">
             Downloading AI Model
           </h1>
-          <p className="text-surface-400">
+          <p className="text-surface-600">
             This is a one-time download. Glee works offline after this.
           </p>
         </div>
@@ -79,7 +79,7 @@ export function DownloadProgress({ onComplete, onSkip }: DownloadProgressProps) 
           <Progress value={percentage} size="lg" showLabel />
 
           {progress && (
-            <div className="flex justify-between text-sm text-surface-400">
+            <div className="flex justify-between text-sm text-surface-500">
               <span>
                 {formatBytes(progress.downloadedBytes)} / {formatBytes(progress.totalBytes)}
               </span>
@@ -88,7 +88,7 @@ export function DownloadProgress({ onComplete, onSkip }: DownloadProgressProps) 
           )}
 
           {error && (
-            <p className="text-sm text-red-400 text-center">{error}</p>
+            <p className="text-sm text-red-500 text-center">{error}</p>
           )}
         </div>
 
@@ -96,18 +96,18 @@ export function DownloadProgress({ onComplete, onSkip }: DownloadProgressProps) 
         <div className="flex items-center justify-center gap-2 mb-6">
           {isDownloading ? (
             <>
-              <div className="w-2 h-2 bg-primary-400 rounded-full animate-pulse" />
-              <span className="text-surface-300">Downloading...</span>
+              <div className="w-2 h-2 bg-primary-500 rounded-full animate-pulse" />
+              <span className="text-surface-600">Downloading...</span>
             </>
           ) : currentDownload?.status === 'paused' ? (
             <>
               <div className="w-2 h-2 bg-yellow-400 rounded-full" />
-              <span className="text-surface-300">Paused</span>
+              <span className="text-surface-600">Paused</span>
             </>
           ) : (
             <>
-              <div className="w-2 h-2 bg-surface-400 rounded-full" />
-              <span className="text-surface-300">Waiting...</span>
+              <div className="w-2 h-2 bg-surface-300 rounded-full" />
+              <span className="text-surface-400">Waiting...</span>
             </>
           )}
         </div>
@@ -127,9 +127,9 @@ export function DownloadProgress({ onComplete, onSkip }: DownloadProgressProps) 
         </div>
 
         {/* Tips */}
-        <div className="mt-6 p-4 bg-surface-700/50 rounded-lg">
-          <h4 className="text-sm font-medium text-surface-300 mb-2">While you wait...</h4>
-          <ul className="text-sm text-surface-400 space-y-1">
+        <div className="mt-6 p-4 bg-surface-100 rounded-lg border border-surface-200">
+          <h4 className="text-sm font-medium text-surface-700 mb-2">While you wait...</h4>
+          <ul className="text-sm text-surface-500 space-y-1">
             <li>• The download will resume if interrupted</li>
             <li>• You can browse characters while downloading</li>
             <li>• Larger models = better quality but slower</li>

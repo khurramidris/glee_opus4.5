@@ -13,6 +13,24 @@ interface MessageBubbleProps {
   getBranchSiblings: (messageId: string) => Promise<Message[]>;
 }
 
+// Format timestamp - handle both Date objects and numeric timestamps
+function formatTime(date: Date | string | number): string {
+  let d: Date;
+  if (typeof date === 'number') {
+    d = new Date(date);
+  } else if (typeof date === 'string') {
+    d = new Date(date);
+  } else {
+    d = date;
+  }
+
+  if (isNaN(d.getTime())) {
+    return '';
+  }
+
+  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true }).toUpperCase();
+}
+
 export const MessageBubble = memo(function MessageBubble({
   message,
   onRegenerate,
@@ -50,23 +68,25 @@ export const MessageBubble = memo(function MessageBubble({
   return (
     <div
       className={cn(
-        'group flex gap-3 py-3 w-full',
+        'group flex gap-3 py-2 w-full',
         isUser ? 'flex-row-reverse' : 'flex-row'
       )}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
-      {!isUser && (
-        <Avatar
-          fallback={message.authorName || 'AI'}
-          size="md"
-          className="flex-shrink-0"
-        />
-      )}
+      {/* Avatar */}
+      <Avatar
+        fallback={isUser ? 'You' : (message.authorName || 'AI')}
+        size="md"
+        className={cn(
+          'flex-shrink-0',
+          isUser ? 'bg-gradient-to-br from-blue-400 to-blue-500' : 'bg-gradient-to-br from-amber-400 to-orange-500'
+        )}
+      />
 
       <div
         className={cn(
-          'flex flex-col max-w-[70%]',
+          'flex flex-col max-w-[65%]',
           isUser ? 'items-end' : 'items-start'
         )}
       >
@@ -79,20 +99,13 @@ export const MessageBubble = memo(function MessageBubble({
           />
         )}
 
-        {/* Author name for character */}
-        {!isUser && message.authorName && (
-          <span className="text-sm font-medium text-surface-300 mb-1">
-            {message.authorName}
-          </span>
-        )}
-
         {/* Message content */}
         <div
           className={cn(
-            'relative px-4 py-2.5 rounded-2xl',
+            'relative px-4 py-2.5 rounded-2xl shadow-soft',
             isUser
-              ? 'bg-primary-600 text-white rounded-br-md'
-              : 'bg-surface-700 text-surface-100 rounded-bl-md'
+              ? 'bg-primary-500 text-white rounded-br-md'
+              : 'bg-surface-50 text-surface-800 rounded-bl-md border border-surface-200'
           )}
         >
           {isEditing ? (
@@ -115,13 +128,13 @@ export const MessageBubble = memo(function MessageBubble({
               <div className="flex justify-end gap-2 mt-2">
                 <button
                   onClick={handleCancelEdit}
-                  className="text-xs text-white/70 hover:text-white"
+                  className="text-xs opacity-70 hover:opacity-100"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSaveEdit}
-                  className="text-xs font-bold text-white hover:text-white/90"
+                  className="text-xs font-bold hover:opacity-90"
                 >
                   Save
                 </button>
@@ -132,6 +145,14 @@ export const MessageBubble = memo(function MessageBubble({
           )}
         </div>
 
+        {/* Timestamp */}
+        <span className={cn(
+          'text-xs text-surface-400 mt-1',
+          isUser ? 'mr-1' : 'ml-1'
+        )}>
+          {formatTime(message.createdAt)}
+        </span>
+
         {/* Actions */}
         <MessageActions
           visible={showActions && !isEditing}
@@ -141,14 +162,6 @@ export const MessageBubble = memo(function MessageBubble({
           onRegenerate={onRegenerate}
         />
       </div>
-
-      {isUser && (
-        <Avatar
-          fallback="You"
-          size="md"
-          className="flex-shrink-0 bg-primary-600"
-        />
-      )}
     </div>
   );
 });

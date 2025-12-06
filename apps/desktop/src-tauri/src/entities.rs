@@ -385,7 +385,7 @@ impl Default for Settings {
                 temperature: 0.8,
                 max_tokens: 512,
                 top_p: 0.9,
-                context_size: 8192,
+                context_size: 4096,  // Match model training context (was 8192)
                 lorebook_budget: Some(500),
                 response_reserve: Some(512),
                 example_dialogue_budget: Some(500),

@@ -7,27 +7,27 @@ export function StatusBar() {
 
   const statusConfig = {
     loading: {
-      color: 'text-yellow-400',
-      bg: 'bg-yellow-400',
+      color: 'text-amber-600',
+      bg: 'bg-amber-500',
       label: 'Loading model...',
     },
     ready: {
-      color: 'text-green-400',
-      bg: 'bg-green-400',
+      color: 'text-emerald-600',
+      bg: 'bg-emerald-500',
       label: 'Model ready',
     },
     error: {
-      color: 'text-red-400',
-      bg: 'bg-red-400',
+      color: 'text-red-600',
+      bg: 'bg-red-500',
       label: 'Model error',
     },
     not_found: {
-      color: 'text-surface-400',
+      color: 'text-surface-500',
       bg: 'bg-surface-400',
       label: 'No model loaded',
     },
     not_loaded: {
-      color: 'text-surface-400',
+      color: 'text-surface-500',
       bg: 'bg-surface-400',
       label: 'Model not loaded',
     },
@@ -36,7 +36,7 @@ export function StatusBar() {
   const config = statusConfig[status] || statusConfig.not_found;
 
   return (
-    <footer className="h-8 flex items-center justify-between px-4 border-t border-surface-700 bg-surface-800 text-xs">
+    <footer className="h-8 flex items-center justify-between px-4 border-t border-surface-200 bg-surface-50 text-xs">
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">
           {status === 'loading' ? (

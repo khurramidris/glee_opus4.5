@@ -1,7 +1,7 @@
 use crate::database::{Database, RowExt};
 use crate::entities::*;
 use crate::error::{AppError, AppResult};
-use rusqlite::{params, OptionalExtension};
+use rusqlite::params;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
@@ -1141,7 +1141,7 @@ impl SettingsRepo {
         settings.generation.temperature = parse_f32("generation.temperature", 0.8);
         settings.generation.max_tokens = parse_i32("generation.max_tokens", 512);
         settings.generation.top_p = parse_f32("generation.top_p", 0.9);
-        settings.generation.context_size = parse_i32("generation.context_size", 8192);
+        settings.generation.context_size = parse_i32("generation.context_size", 4096);
         
         settings.app.theme = parse("app.theme", "\"dark\"".to_string()).replace("\"", "");
         settings.app.first_run = parse_bool("app.first_run", true);

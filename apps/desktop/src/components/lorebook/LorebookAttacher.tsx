@@ -55,17 +55,17 @@ export function LorebookAttacher({
         {/* Global Lorebooks */}
         {globalLorebooks.length > 0 && (
           <div>
-            <h4 className="text-sm font-medium text-surface-400 mb-2">
+            <h4 className="text-sm font-medium text-surface-500 mb-2">
               Global Lorebooks (always active)
             </h4>
             <div className="space-y-2">
               {globalLorebooks.map((lb) => (
                 <div
                   key={lb.id}
-                  className="flex items-center justify-between p-3 bg-surface-700/50 rounded-lg"
+                  className="flex items-center justify-between p-3 bg-surface-100 rounded-lg border border-surface-200"
                 >
                   <div>
-                    <p className="font-medium text-surface-200">{lb.name}</p>
+                    <p className="font-medium text-surface-900">{lb.name}</p>
                     <p className="text-sm text-surface-500">{lb.entries.length} entries</p>
                   </div>
                   <Badge variant="primary">Global</Badge>
@@ -77,7 +77,7 @@ export function LorebookAttacher({
 
         {/* Attachable Lorebooks */}
         <div>
-          <h4 className="text-sm font-medium text-surface-400 mb-2">
+          <h4 className="text-sm font-medium text-surface-500 mb-2">
             Available Lorebooks
           </h4>
           {nonGlobalLorebooks.length === 0 ? (
@@ -93,10 +93,10 @@ export function LorebookAttacher({
                 return (
                   <div
                     key={lb.id}
-                    className="flex items-center justify-between p-3 bg-surface-700/50 rounded-lg"
+                    className="flex items-center justify-between p-3 bg-surface-100 rounded-lg border border-surface-200"
                   >
                     <div>
-                      <p className="font-medium text-surface-200">{lb.name}</p>
+                      <p className="font-medium text-surface-900">{lb.name}</p>
                       <p className="text-sm text-surface-500">{lb.entries.length} entries</p>
                     </div>
                     <Toggle

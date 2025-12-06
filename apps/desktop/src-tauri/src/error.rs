@@ -118,7 +118,7 @@ impl Serialize for AppError {
 impl Clone for AppError {
     fn clone(&self) -> Self {
         match self {
-            Self::Database(e) => Self::Database(rusqlite::Error::QueryReturnedNoRows),
+            Self::Database(_e) => Self::Other(format!("Database error: {}", _e)),
             Self::NotFound(s) => Self::NotFound(s.clone()),
             Self::Validation(s) => Self::Validation(s.clone()),
             Self::Io(e) => Self::Io(std::io::Error::new(e.kind(), e.to_string())),

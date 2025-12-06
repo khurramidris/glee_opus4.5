@@ -8,14 +8,14 @@ interface SetupCompleteProps {
 
 export function SetupComplete({ onContinue }: SetupCompleteProps) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-surface-900 p-8">
+    <div className="min-h-screen flex items-center justify-center bg-surface-50 p-8">
       <Card className="max-w-lg w-full text-center">
         {/* Success Animation */}
         <motion.div
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
           transition={{ type: 'spring', duration: 0.5 }}
-          className="w-20 h-20 mx-auto mb-6 bg-green-600 rounded-full flex items-center justify-center"
+          className="w-20 h-20 mx-auto mb-6 bg-green-500 rounded-full flex items-center justify-center shadow-lg shadow-green-200"
         >
           <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <motion.path
@@ -35,10 +35,10 @@ export function SetupComplete({ onContinue }: SetupCompleteProps) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
         >
-          <h1 className="text-2xl font-bold text-surface-100 mb-2">
+          <h1 className="text-2xl font-bold text-surface-900 mb-2">
             You're All Set!
           </h1>
-          <p className="text-surface-400 mb-8">
+          <p className="text-surface-600 mb-8">
             Glee is ready. Start chatting with your first character.
           </p>
 
@@ -69,11 +69,11 @@ export function SetupComplete({ onContinue }: SetupCompleteProps) {
 
 function TipItem({ number, text }: { number: number; text: string }) {
   return (
-    <div className="flex items-center gap-3 p-3 bg-surface-700/50 rounded-lg">
-      <span className="w-6 h-6 bg-primary-600 rounded-full flex items-center justify-center text-xs font-bold text-white">
+    <div className="flex items-center gap-3 p-3 bg-surface-100 rounded-lg border border-surface-200">
+      <span className="w-6 h-6 bg-primary-500 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-sm">
         {number}
       </span>
-      <span className="text-sm text-surface-300">{text}</span>
+      <span className="text-sm text-surface-700">{text}</span>
     </div>
   );
 }

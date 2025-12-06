@@ -14,7 +14,7 @@ export function CharacterCreator() {
   const navigate = useNavigate();
   const { createCharacter } = useCharacterStore();
   const { addToast } = useUIStore();
-  
+
   const [activeTab, setActiveTab] = useState('basic');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<CreateCharacterInput>({
@@ -69,7 +69,7 @@ export function CharacterCreator() {
   };
 
   return (
-    <div className="h-full overflow-y-auto">
+    <div className="h-full overflow-y-auto bg-surface-100">
       <div className="max-w-3xl mx-auto p-6">
         <Card>
           <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
@@ -110,7 +110,7 @@ export function CharacterCreator() {
 
                 {/* Tags */}
                 <div>
-                  <label className="block text-sm font-medium text-surface-300 mb-1.5">
+                  <label className="block text-sm font-medium text-surface-700 mb-1.5">
                     Tags
                   </label>
                   <div className="flex gap-2 mb-2">
@@ -129,12 +129,12 @@ export function CharacterCreator() {
                       {formData.tags.map((tag) => (
                         <span
                           key={tag}
-                          className="inline-flex items-center gap-1 px-2 py-1 bg-surface-700 text-surface-300 rounded-lg text-sm"
+                          className="inline-flex items-center gap-1 px-2 py-1 bg-surface-200 text-surface-700 rounded-lg text-sm"
                         >
                           {tag}
                           <button
                             onClick={() => handleRemoveTag(tag)}
-                            className="text-surface-500 hover:text-surface-200"
+                            className="text-surface-400 hover:text-surface-600"
                           >
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -178,7 +178,7 @@ export function CharacterCreator() {
                   rows={8}
                 />
                 <p className="text-sm text-surface-500">
-                  The system prompt gives direct instructions to the AI. If left blank, 
+                  The system prompt gives direct instructions to the AI. If left blank,
                   Glee will construct one from the character's description and personality.
                 </p>
               </>
@@ -186,7 +186,7 @@ export function CharacterCreator() {
           </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-3 p-6 border-t border-surface-700">
+          <div className="flex justify-end gap-3 p-6 border-t border-surface-200">
             <Button variant="secondary" onClick={() => navigate('/characters')}>
               Cancel
             </Button>

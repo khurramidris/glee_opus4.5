@@ -1,4 +1,4 @@
-import { useEffect, Suspense } from 'react';
+import { useEffect, Suspense, useRef, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
 import { ChatView } from '@/components/chat/ChatView';
@@ -12,7 +12,7 @@ import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { WelcomeScreen } from '@/components/onboarding/WelcomeScreen';
 import { Toast } from '@/components/ui/Toast';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
-import { Spinner } from '@/components/ui/Spinner';
+import { SplashScreen } from '@/components/ui/SplashScreen';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useCharacterStore } from '@/stores/characterStore';
@@ -21,31 +21,40 @@ import { useConversationStore } from '@/stores/conversationStore';
 
 function LoadingFallback() {
   return (
-    <div className="flex items-center justify-center h-full bg-surface-900 text-surface-100">
-      <div className="flex flex-col items-center gap-4">
-        <Spinner size="lg" />
-        <p>Loading Glee...</p>
-      </div>
-    </div>
+    <SplashScreen status="Loading content..." />
   );
 }
 
 export default function App() {
-  const { settings, fetchSettings } = useSettingsStore();
+  const { settings, fetchSettings, startSidecar } = useSettingsStore();
   const { fetchCharacters } = useCharacterStore();
   const { fetchPersonas } = usePersonaStore();
   const { fetchConversations } = useConversationStore();
   const toasts = useUIStore((s) => s.toasts);
+  const autoStartAttempted = useRef(false);
+
+  // Loading state tracking for splash screen
+  const [loadingPhase, setLoadingPhase] = useState<'init' | 'settings' | 'data' | 'model' | 'ready'>('init');
+  const [loadingProgress, setLoadingProgress] = useState(0);
 
   useEffect(() => {
     const loadData = async () => {
       try {
+        // Phase 1: Load settings
+        setLoadingPhase('settings');
+        setLoadingProgress(10);
         await fetchSettings();
+        setLoadingProgress(30);
+
+        // Phase 2: Load app data
+        setLoadingPhase('data');
+        setLoadingProgress(40);
         await Promise.all([
           fetchCharacters(),
           fetchPersonas(),
           fetchConversations(),
         ]);
+        setLoadingProgress(70);
       } catch (e) {
         console.error("Failed to load initial data", e);
       }
@@ -53,9 +62,46 @@ export default function App() {
     loadData();
   }, []);
 
-  // Show loading while settings are being fetched
-  if (!settings) {
-    return <LoadingFallback />;
+  // Auto-start sidecar after settings are loaded and first run is complete
+  useEffect(() => {
+    if (settings && !settings.app.firstRun && !autoStartAttempted.current) {
+      autoStartAttempted.current = true;
+      setLoadingPhase('model');
+      setLoadingProgress(80);
+
+      // Start model loading
+      startSidecar()
+        .then(() => {
+          setLoadingProgress(100);
+          setTimeout(() => setLoadingPhase('ready'), 300);
+        })
+        .catch(err => {
+          console.log('Model auto-start failed (may not be installed yet):', err);
+          // Still mark as ready so user can access the app
+          setLoadingProgress(100);
+          setTimeout(() => setLoadingPhase('ready'), 300);
+        });
+    } else if (settings && settings.app.firstRun) {
+      // First run - mark as ready immediately
+      setLoadingProgress(100);
+      setLoadingPhase('ready');
+    }
+  }, [settings, startSidecar]);
+
+  // Get status message based on loading phase
+  const getLoadingStatus = () => {
+    switch (loadingPhase) {
+      case 'init': return 'Initializing...';
+      case 'settings': return 'Loading settings...';
+      case 'data': return 'Loading characters and personas...';
+      case 'model': return 'Starting AI model...';
+      default: return 'Almost ready...';
+    }
+  };
+
+  // Show splash screen while initializing
+  if (!settings || (loadingPhase !== 'ready' && !settings.app.firstRun)) {
+    return <SplashScreen status={getLoadingStatus()} progress={loadingProgress} />;
   }
 
   // Show onboarding if first run

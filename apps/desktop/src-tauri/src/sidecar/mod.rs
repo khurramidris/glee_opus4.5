@@ -7,6 +7,10 @@ use tokio_util::sync::CancellationToken;
 use tauri::{AppHandle, Manager};
 use futures::StreamExt;
 
+#[cfg(target_os = "windows")]
+#[allow(unused_imports)]
+use std::os::windows::process::CommandExt;
+
 use crate::error::{AppError, AppResult};
 
 const DEFAULT_SIDECAR_PORT: u16 = 8384;
@@ -115,15 +119,18 @@ pub async fn start_sidecar(
         .arg("--n-gpu-layers").arg(gpu_layers.to_string())
         .arg("--parallel").arg("1")
         .arg("--cont-batching")
+        // Performance optimizations
+        .arg("--flash-attn")           // Flash Attention: 30-40% faster, lower VRAM
+        .arg("-ctk").arg("q8_0")       // Quantize KV cache for speed + memory
+        .arg("--mlock")                // Lock model in RAM to prevent swapping
+        // Verbose logging for GPU debugging
+        .arg("-v")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
     
     #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x08000000);
-    }
+    cmd.creation_flags(0x08000000);
     
     let mut child = cmd.spawn()
         .map_err(|e| AppError::Sidecar(format!("Failed to start sidecar: {}", e)))?;

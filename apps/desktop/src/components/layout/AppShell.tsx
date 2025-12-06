@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
-import { Sidebar } from './Sidebar';
+import { useLocation } from 'react-router-dom';
+import { IconSidebar } from './IconSidebar';
+import { ContactsList } from './ContactsList';
 import { Header } from './Header';
 import { StatusBar } from './StatusBar';
 
@@ -8,20 +10,29 @@ interface AppShellProps {
 }
 
 export function AppShell({ children }: AppShellProps) {
+  const location = useLocation();
+  const isInChat = location.pathname.startsWith('/chat/');
+
+
   return (
-    <div className="flex h-screen w-screen bg-surface-900 text-surface-100 overflow-hidden">
-      {/* Sidebar */}
+    <div className="flex h-screen w-screen bg-surface-100 text-surface-800 overflow-hidden">
+      {/* Panel 1: Icon Sidebar (narrow) */}
       <div className="flex-shrink-0 h-full">
-        <Sidebar />
+        <IconSidebar />
       </div>
 
-      {/* Main Content */}
-      <div className="flex flex-col flex-1 min-w-0 h-full relative">
-        <Header />
+      {/* Panel 2: Contacts/Characters List */}
+      <div className="flex-shrink-0 h-full">
+        <ContactsList />
+      </div>
+
+      {/* Panel 3: Main Content Area */}
+      <div className="flex flex-col flex-1 min-w-0 h-full relative bg-surface-50">
+        {!isInChat && <Header />}
         <main className="flex-1 overflow-hidden relative">
           {children}
         </main>
-        <StatusBar />
+        {!isInChat && <StatusBar />}
       </div>
     </div>
   );

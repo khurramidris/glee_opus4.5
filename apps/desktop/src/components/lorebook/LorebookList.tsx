@@ -16,7 +16,7 @@ export function LorebookList() {
   const navigate = useNavigate();
   const { lorebooks, isLoading, createLorebook, deleteLorebook } = useLorebooks();
   const { addToast } = useUIStore();
-  
+
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -54,19 +54,19 @@ export function LorebookList() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex items-center justify-center h-full bg-surface-100">
         <Spinner size="lg" />
       </div>
     );
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-surface-100">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-surface-700">
+      <div className="flex items-center justify-between p-4 border-b border-surface-200 bg-surface-50">
         <div>
-          <h2 className="text-lg font-semibold text-surface-100">Lorebooks</h2>
-          <p className="text-sm text-surface-400">
+          <h2 className="text-lg font-semibold text-surface-900">Lorebooks</h2>
+          <p className="text-sm text-surface-500">
             World-building knowledge that gets injected into conversations
           </p>
         </div>
@@ -82,12 +82,12 @@ export function LorebookList() {
       <div className="flex-1 overflow-y-auto p-4">
         {lorebooks.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="w-16 h-16 mb-4 text-surface-600">
+            <div className="w-16 h-16 mb-4 text-surface-400">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
               </svg>
             </div>
-            <h3 className="text-lg font-medium text-surface-300 mb-2">
+            <h3 className="text-lg font-medium text-surface-700 mb-2">
               No lorebooks yet
             </h3>
             <p className="text-surface-500 mb-4 max-w-md">
@@ -110,7 +110,7 @@ export function LorebookList() {
               >
                 <div className="p-4">
                   <div className="flex items-start justify-between mb-2">
-                    <h3 className="font-semibold text-surface-100">
+                    <h3 className="font-semibold text-surface-900">
                       {lorebook.name}
                     </h3>
                     <div className="flex items-center gap-2">
@@ -122,31 +122,31 @@ export function LorebookList() {
                       )}
                     </div>
                   </div>
-                  <p className="text-sm text-surface-400 line-clamp-2 mb-3">
+                  <p className="text-sm text-surface-500 line-clamp-2 mb-3">
                     {lorebook.description || 'No description'}
                   </p>
                   <div className="flex items-center gap-4 text-xs text-surface-500">
                     <span>{lorebook.entries.length} entries</span>
                   </div>
                 </div>
-                
-                <div className="flex border-t border-surface-700">
+
+                <div className="flex border-t border-surface-200">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       navigate(`/lorebooks/${lorebook.id}`);
                     }}
-                    className="flex-1 px-4 py-2.5 text-sm text-surface-400 hover:text-surface-100 hover:bg-surface-700 transition-colors"
+                    className="flex-1 px-4 py-2.5 text-sm text-surface-500 hover:text-surface-700 hover:bg-surface-100 transition-colors"
                   >
                     Edit
                   </button>
-                  <div className="w-px bg-surface-700" />
+                  <div className="w-px bg-surface-200" />
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       setDeleteConfirm(lorebook.id);
                     }}
-                    className="px-4 py-2.5 text-surface-400 hover:text-red-400 hover:bg-surface-700 transition-colors"
+                    className="px-4 py-2.5 text-surface-500 hover:text-red-500 hover:bg-surface-100 transition-colors"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -203,7 +203,7 @@ export function LorebookList() {
         title="Delete Lorebook"
         size="sm"
       >
-        <p className="text-surface-300 mb-6">
+        <p className="text-surface-600 mb-6">
           Are you sure you want to delete this lorebook? All entries will be lost.
         </p>
         <div className="flex justify-end gap-3">

@@ -57,7 +57,7 @@ export function Modal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
             onClick={onClose}
           />
 
@@ -68,22 +68,22 @@ export function Modal({
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ duration: 0.15 }}
             className={cn(
-              'relative w-full mx-4 bg-surface-800 border border-surface-700 rounded-xl shadow-xl',
+              'relative w-full mx-4 bg-surface-50 border border-surface-200 rounded-2xl shadow-xl',
               sizes[size]
             )}
           >
             {/* Header */}
             {(title || showClose) && (
-              <div className="flex items-center justify-between px-6 py-4 border-b border-surface-700">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-surface-200">
                 {title && (
-                  <h2 className="text-lg font-semibold text-surface-100">
+                  <h2 className="text-lg font-semibold text-surface-900">
                     {title}
                   </h2>
                 )}
                 {showClose && (
                   <button
                     onClick={onClose}
-                    className="p-1 text-surface-400 hover:text-surface-100 rounded-lg hover:bg-surface-700 transition-colors"
+                    className="p-1 text-surface-400 hover:text-surface-600 rounded-lg hover:bg-surface-100 transition-colors"
                   >
                     <svg
                       className="w-5 h-5"

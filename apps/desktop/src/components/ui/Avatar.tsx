@@ -32,7 +32,7 @@ export function Avatar({
       setImageSrc(null);
       return;
     }
-    
+
     // Handle different src types
     if (src.startsWith('data:') || src.startsWith('http')) {
       // Data URI or remote URL (for dev/base64)
@@ -43,27 +43,7 @@ export function Avatar({
       if (src.includes('/') || src.includes('\\')) {
         setImageSrc(convertFileSrc(src));
       } else {
-        // Filename only - assume it's in the app's avatar directory
-        // We need to resolve this relative to the app data dir.
-        // For simplicity in V1, we assume avatars are stored in $APP_DATA/avatars/
-        // But convertFileSrc with 'asset' doesn't automatically look there.
-        // The backend `get_character` should theoretically return full path or we construct it.
-        // If we only store filename, we need the base path.
-        // For now, let's try to load via custom protocol if possible, 
-        // OR rely on the Store/Hook to provide the full path.
-        // 
-        // BETTER APPROACH: The backend 'import' returns just filename.
-        // The UI needs to know the AppData dir. 
-        // Let's assume the passed `src` is the full path for now (fixed in AvatarUploader/Store)
-        // OR: use a placeholder if it's just a filename and we can't resolve it yet.
-        
-        // HACK: For V1, assume specific protocol URL structure or context provider
-        // Let's try to assume it's a relative path from the app assets
-        // But real user images are in AppData.
-        
-        // Fix: Use the `asset:` protocol with the assumed path structure if we can get it.
-        // Ideally, `src` passed here should be a Full Path or a URL.
-        setImageSrc(convertFileSrc(src)); 
+        setImageSrc(convertFileSrc(src));
       }
     }
     setError(false);
@@ -77,16 +57,32 @@ export function Avatar({
 
   const showFallback = !imageSrc || error;
 
+  // Generate a color based on the fallback text
+  const getGradient = () => {
+    const text = fallback || alt || '';
+    const colors = [
+      'from-amber-400 to-orange-500',
+      'from-teal-400 to-cyan-500',
+      'from-violet-400 to-purple-500',
+      'from-rose-400 to-pink-500',
+      'from-emerald-400 to-green-500',
+      'from-blue-400 to-indigo-500',
+    ];
+    const index = text.charCodeAt(0) % colors.length || 0;
+    return colors[index];
+  };
+
   return (
     <div
       className={cn(
-        'relative flex items-center justify-center rounded-full bg-surface-700 overflow-hidden flex-shrink-0',
+        'relative flex items-center justify-center rounded-full overflow-hidden flex-shrink-0',
+        showFallback ? `bg-gradient-to-br ${getGradient()}` : 'bg-surface-200',
         sizes[size],
         className
       )}
     >
       {showFallback ? (
-        <span className="font-medium text-surface-300">{getFallbackText()}</span>
+        <span className="font-medium text-white">{getFallbackText()}</span>
       ) : (
         <img
           src={imageSrc || ''}

@@ -7,13 +7,13 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Spinner } from '@/components/ui/Spinner';
-import { open } from '@tauri-apps/plugin-dialog'; // Import dialog
+import { open } from '@tauri-apps/plugin-dialog';
 
 export function ModelSettings() {
   const { settings, updateSetting, fetchSettings } = useSettings();
   const { status, isLoaded, modelPath, startSidecar, stopSidecar, isLoading } = useModelStatus();
   const { addToast } = useUIStore();
-  
+
   const [gpuLayers, setGpuLayers] = useState(settings?.model.gpuLayers ?? 99);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -30,7 +30,6 @@ export function ModelSettings() {
     }
   };
 
-  // --- NEW FUNCTION: BROWSE FILE ---
   const handleBrowse = async () => {
     try {
       const selected = await open({
@@ -47,7 +46,6 @@ export function ModelSettings() {
       addToast({ type: 'error', message: `Failed to select model: ${e}` });
     }
   };
-  // ---------------------------------
 
   const handleStartModel = async () => {
     try {
@@ -79,16 +77,16 @@ export function ModelSettings() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold text-surface-100 mb-2">Model Settings</h2>
-        <p className="text-surface-400 text-sm">
+        <h2 className="text-lg font-semibold text-surface-900 mb-2">Model Settings</h2>
+        <p className="text-surface-500 text-sm">
           Configure and manage the AI model.
         </p>
       </div>
 
       {/* Current Model Status */}
       <Card>
-        <h3 className="text-sm font-medium text-surface-300 mb-4">Model Status</h3>
-        
+        <h3 className="text-sm font-medium text-surface-700 mb-4">Model Status</h3>
+
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -98,7 +96,7 @@ export function ModelSettings() {
                 <Badge variant={currentStatus.color}>{currentStatus.label}</Badge>
               )}
             </div>
-            
+
             <div className="flex gap-2">
               {isLoaded ? (
                 <Button variant="secondary" onClick={handleStopModel} disabled={isLoading}>
@@ -113,8 +111,8 @@ export function ModelSettings() {
           </div>
 
           {/* Path Display & Change Button */}
-          <div className="flex items-center gap-2 p-3 bg-surface-900 rounded border border-surface-700">
-            <div className="flex-1 text-sm text-surface-300 font-mono truncate">
+          <div className="flex items-center gap-2 p-3 bg-surface-100 rounded border border-surface-200">
+            <div className="flex-1 text-sm text-surface-600 font-mono truncate">
               {modelPath || settings?.model.path || "No model selected"}
             </div>
             <Button size="sm" variant="secondary" onClick={handleBrowse}>
@@ -126,7 +124,7 @@ export function ModelSettings() {
 
       {/* GPU Settings */}
       <Card>
-        <h3 className="text-sm font-medium text-surface-300 mb-4">GPU Acceleration</h3>
+        <h3 className="text-sm font-medium text-surface-700 mb-4">GPU Acceleration</h3>
         <div className="space-y-4">
           <Input
             label="GPU Layers"

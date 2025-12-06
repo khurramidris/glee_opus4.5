@@ -38,19 +38,19 @@ export function PersonaList() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex items-center justify-center h-full bg-surface-100">
         <Spinner size="lg" />
       </div>
     );
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-surface-100">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-surface-700">
+      <div className="flex items-center justify-between p-4 border-b border-surface-200 bg-surface-50">
         <div>
-          <h2 className="text-lg font-semibold text-surface-100">Your Personas</h2>
-          <p className="text-sm text-surface-400">
+          <h2 className="text-lg font-semibold text-surface-900">Your Personas</h2>
+          <p className="text-sm text-surface-500">
             Personas define who you are in conversations
           </p>
         </div>
@@ -66,12 +66,12 @@ export function PersonaList() {
       <div className="flex-1 overflow-y-auto p-4">
         {personas.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="w-16 h-16 mb-4 text-surface-600">
+            <div className="w-16 h-16 mb-4 text-surface-400">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
             </div>
-            <h3 className="text-lg font-medium text-surface-300 mb-2">
+            <h3 className="text-lg font-medium text-surface-700 mb-2">
               No personas yet
             </h3>
             <p className="text-surface-500 mb-4">
@@ -114,7 +114,7 @@ export function PersonaList() {
         title="Delete Persona"
         size="sm"
       >
-        <p className="text-surface-300 mb-6">
+        <p className="text-surface-600 mb-6">
           Are you sure you want to delete this persona?
         </p>
         <div className="flex justify-end gap-3">

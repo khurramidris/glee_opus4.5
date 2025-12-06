@@ -32,9 +32,23 @@ export default {
           900: 'var(--color-surface-900)',
           950: 'var(--color-surface-950)',
         },
+        accent: {
+          coral: 'var(--color-accent-coral)',
+          green: 'var(--color-accent-green)',
+          blue: 'var(--color-accent-blue)',
+        },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+      },
+      borderRadius: {
+        '2xl': '1rem',
+        '3xl': '1.5rem',
+      },
+      boxShadow: {
+        'soft': '0 2px 8px rgba(0, 0, 0, 0.05)',
+        'card': '0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04)',
+        'glow': '0 0 12px rgba(245, 158, 11, 0.3)',
       },
       animation: {
         'blink': 'blink 1s step-end infinite',

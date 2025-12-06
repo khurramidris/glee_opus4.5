@@ -27,7 +27,7 @@ export function Progress({
     <div className={cn('w-full', className)}>
       <div
         className={cn(
-          'w-full bg-surface-700 rounded-full overflow-hidden',
+          'w-full bg-surface-200 rounded-full overflow-hidden',
           sizes[size]
         )}
       >
@@ -37,7 +37,7 @@ export function Progress({
         />
       </div>
       {showLabel && (
-        <p className="mt-1 text-sm text-surface-400 text-right">
+        <p className="mt-1 text-sm text-surface-500 text-right">
           {percentage.toFixed(0)}%
         </p>
       )}

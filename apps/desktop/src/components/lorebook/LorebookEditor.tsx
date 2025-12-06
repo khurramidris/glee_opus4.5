@@ -80,21 +80,21 @@ export function LorebookEditor() {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-surface-50">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-surface-700">
+      <div className="flex items-center justify-between p-4 border-b border-surface-200 bg-white">
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate('/lorebooks')}
-            className="p-2 text-surface-400 hover:text-surface-100 hover:bg-surface-700 rounded-lg"
+            className="p-2 text-surface-500 hover:text-surface-900 hover:bg-surface-100 rounded-lg transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
           <div>
-            <h2 className="text-lg font-semibold text-surface-100">{lorebook.name}</h2>
-            <p className="text-sm text-surface-400">
+            <h2 className="text-lg font-semibold text-surface-900">{lorebook.name}</h2>
+            <p className="text-sm text-surface-500">
               {lorebook.entries.length} entries
             </p>
           </div>
@@ -116,7 +116,7 @@ export function LorebookEditor() {
         <div className="max-w-4xl mx-auto space-y-6">
           {/* Lorebook Settings */}
           <Card>
-            <h3 className="text-sm font-medium text-surface-300 mb-4">Settings</h3>
+            <h3 className="text-sm font-medium text-surface-700 mb-4">Settings</h3>
             <div className="space-y-4">
               <Input
                 label="Name"
@@ -146,10 +146,10 @@ export function LorebookEditor() {
 
           {/* Entries */}
           <div>
-            <h3 className="text-sm font-medium text-surface-300 mb-3">Entries</h3>
+            <h3 className="text-sm font-medium text-surface-700 mb-3">Entries</h3>
             {lorebook.entries.length === 0 ? (
               <Card className="text-center py-8">
-                <p className="text-surface-400 mb-4">No entries yet</p>
+                <p className="text-surface-500 mb-4">No entries yet</p>
                 <Button variant="secondary" onClick={handleCreateEntry}>
                   Create First Entry
                 </Button>
@@ -164,12 +164,12 @@ export function LorebookEditor() {
                       padding="sm"
                       hoverable
                       onClick={() => handleEditEntry(entry)}
-                      className="cursor-pointer"
+                      className="cursor-pointer border border-surface-200 hover:border-primary-300 transition-colors"
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <h4 className="font-medium text-surface-100">
+                            <h4 className="font-medium text-surface-900">
                               {entry.name || 'Unnamed Entry'}
                             </h4>
                             <Badge size="sm">P{entry.priority}</Badge>
@@ -181,18 +181,18 @@ export function LorebookEditor() {
                             {entry.keywords.slice(0, 5).map((kw) => (
                               <span
                                 key={kw}
-                                className="px-2 py-0.5 bg-surface-700 text-surface-300 rounded text-xs"
+                                className="px-2 py-0.5 bg-surface-100 text-surface-600 border border-surface-200 rounded text-xs"
                               >
                                 {kw}
                               </span>
                             ))}
                             {entry.keywords.length > 5 && (
-                              <span className="px-2 py-0.5 text-surface-500 text-xs">
+                              <span className="px-2 py-0.5 text-surface-400 text-xs">
                                 +{entry.keywords.length - 5} more
                               </span>
                             )}
                           </div>
-                          <p className="text-sm text-surface-400 line-clamp-2">
+                          <p className="text-sm text-surface-500 line-clamp-2">
                             {entry.content}
                           </p>
                         </div>
@@ -201,7 +201,7 @@ export function LorebookEditor() {
                             e.stopPropagation();
                             setDeleteEntryConfirm(entry.id);
                           }}
-                          className="p-2 text-surface-500 hover:text-red-400 rounded"
+                          className="p-2 text-surface-400 hover:text-red-500 rounded"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -237,7 +237,7 @@ export function LorebookEditor() {
         title="Delete Entry"
         size="sm"
       >
-        <p className="text-surface-300 mb-6">
+        <p className="text-surface-600 mb-6">
           Are you sure you want to delete this entry?
         </p>
         <div className="flex justify-end gap-3">

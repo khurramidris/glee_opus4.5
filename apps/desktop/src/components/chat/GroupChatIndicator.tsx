@@ -11,7 +11,7 @@ export function GroupChatIndicator({
   currentSpeaker,
 }: GroupChatIndicatorProps) {
   return (
-    <div className="flex items-center gap-2 px-4 py-2 bg-surface-800 border-b border-surface-700">
+    <div className="flex items-center gap-2 px-4 py-2 bg-surface-50 border-b border-surface-200">
       <div className="flex -space-x-2">
         {characters.slice(0, 4).map((char) => (
           <Avatar
@@ -19,20 +19,20 @@ export function GroupChatIndicator({
             src={char.avatarPath}
             fallback={char.name}
             size="sm"
-            className="ring-2 ring-surface-800"
+            className="ring-2 ring-white"
           />
         ))}
         {characters.length > 4 && (
-          <div className="w-8 h-8 rounded-full bg-surface-600 ring-2 ring-surface-800 flex items-center justify-center text-xs text-surface-300">
+          <div className="w-8 h-8 rounded-full bg-surface-200 ring-2 ring-white flex items-center justify-center text-xs text-surface-600">
             +{characters.length - 4}
           </div>
         )}
       </div>
 
-      <span className="text-sm text-surface-400">
+      <span className="text-sm text-surface-600">
         {currentSpeaker ? (
           <>
-            <span className="text-surface-200">{currentSpeaker}</span> is responding...
+            <span className="text-surface-900 font-medium">{currentSpeaker}</span> is responding...
           </>
         ) : (
           <>Group chat with {characters.length} characters</>

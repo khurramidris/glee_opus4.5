@@ -26,8 +26,8 @@ export const ConversationItem = memo(function ConversationItem({
       className={cn(
         'group relative flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors',
         isSelected
-          ? 'bg-primary-600/20 text-primary-400'
-          : 'hover:bg-surface-700 text-surface-300'
+          ? 'bg-primary-50 text-primary-900'
+          : 'hover:bg-surface-100 text-surface-700'
       )}
       onClick={onClick}
       onMouseEnter={() => setShowMenu(true)}
@@ -43,7 +43,7 @@ export const ConversationItem = memo(function ConversationItem({
               fallback={char.name}
               size="sm"
               className={cn(
-                'absolute ring-2 ring-surface-800',
+                'absolute ring-2 ring-white',
                 i === 0 ? 'top-0 left-0' : 'bottom-0 right-0'
               )}
             />
@@ -78,7 +78,7 @@ export const ConversationItem = memo(function ConversationItem({
             e.stopPropagation();
             onDelete();
           }}
-          className="absolute right-2 p-1.5 text-surface-500 hover:text-red-400 hover:bg-surface-600 rounded transition-colors"
+          className="absolute right-2 p-1.5 text-surface-500 hover:text-red-500 hover:bg-surface-200 rounded transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

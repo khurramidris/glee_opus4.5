@@ -82,20 +82,20 @@ export function DataSettings() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold text-surface-100 mb-2">Data Management</h2>
-        <p className="text-surface-400 text-sm">
+        <h2 className="text-lg font-semibold text-surface-900 mb-2">Data Management</h2>
+        <p className="text-surface-500 text-sm">
           Export and import your data. Your data is always stored locally.
         </p>
       </div>
 
       {/* Export */}
       <Card>
-        <h3 className="text-sm font-medium text-surface-300 mb-4">Export Data</h3>
+        <h3 className="text-sm font-medium text-surface-700 mb-4">Export Data</h3>
 
         <div className="space-y-4">
-          <div className="flex items-center justify-between p-3 bg-surface-700/50 rounded-lg">
+          <div className="flex items-center justify-between p-3 bg-surface-100 rounded-lg border border-surface-200">
             <div>
-              <p className="font-medium text-surface-200">Export All Data</p>
+              <p className="font-medium text-surface-800">Export All Data</p>
               <p className="text-sm text-surface-500">
                 Characters, conversations, personas, lorebooks, and settings
               </p>
@@ -113,12 +113,12 @@ export function DataSettings() {
 
       {/* Import */}
       <Card>
-        <h3 className="text-sm font-medium text-surface-300 mb-4">Import Data</h3>
+        <h3 className="text-sm font-medium text-surface-700 mb-4">Import Data</h3>
 
         <div className="space-y-4">
-          <div className="flex items-center justify-between p-3 bg-surface-700/50 rounded-lg">
+          <div className="flex items-center justify-between p-3 bg-surface-100 rounded-lg border border-surface-200">
             <div>
-              <p className="font-medium text-surface-200">Import Backup</p>
+              <p className="font-medium text-surface-800">Import Backup</p>
               <p className="text-sm text-surface-500">
                 Restore data from a Glee backup file
               </p>
@@ -136,15 +136,15 @@ export function DataSettings() {
 
       {/* Data Location */}
       <Card>
-        <h3 className="text-sm font-medium text-surface-300 mb-4">Data Location</h3>
+        <h3 className="text-sm font-medium text-surface-700 mb-4">Data Location</h3>
 
-        <p className="text-sm text-surface-400 mb-3">
+        <p className="text-sm text-surface-500 mb-3">
           All your data is stored locally on your device. Nothing is sent to the cloud.
         </p>
 
-        <div className="p-3 bg-surface-700/50 rounded-lg">
+        <div className="p-3 bg-surface-100 rounded-lg border border-surface-200">
           <p className="text-xs text-surface-500 mb-1">Data directory:</p>
-          <p className="text-sm text-surface-300 font-mono break-all">
+          <p className="text-sm text-surface-700 font-mono break-all">
             {/* This would be populated from app info */}
             ~/Library/Application Support/Glee (macOS)
             <br />
@@ -156,13 +156,13 @@ export function DataSettings() {
       </Card>
 
       {/* Danger Zone */}
-      <Card className="border-red-900/50">
-        <h3 className="text-sm font-medium text-red-400 mb-4">Danger Zone</h3>
+      <Card className="border-red-200">
+        <h3 className="text-sm font-medium text-red-600 mb-4">Danger Zone</h3>
 
-        <div className="flex items-center justify-between p-3 bg-red-900/20 rounded-lg">
+        <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-100">
           <div>
-            <p className="font-medium text-surface-200">Reset All Data</p>
-            <p className="text-sm text-surface-500">
+            <p className="font-medium text-red-900">Reset All Data</p>
+            <p className="text-sm text-red-700">
               Delete all characters, conversations, and settings
             </p>
           </div>
@@ -179,7 +179,7 @@ export function DataSettings() {
         title="Confirm Import"
         size="sm"
       >
-        <p className="text-surface-300 mb-4">
+        <p className="text-surface-600 mb-4">
           Are you sure you want to import data from this file?
         </p>
         <p className="text-sm text-surface-500 mb-6">

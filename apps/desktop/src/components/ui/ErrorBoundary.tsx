@@ -42,7 +42,7 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+        <div className="flex flex-col items-center justify-center h-full p-8 text-center bg-surface-50">
           <div className="w-16 h-16 mb-4 text-red-500">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
@@ -53,20 +53,20 @@ export class ErrorBoundary extends Component<Props, State> {
               />
             </svg>
           </div>
-          <h2 className="text-xl font-semibold text-surface-100 mb-2">
+          <h2 className="text-xl font-semibold text-surface-900 mb-2">
             Something went wrong
           </h2>
-          <p className="text-surface-400 mb-2 max-w-md">
+          <p className="text-surface-500 mb-2 max-w-md">
             {this.state.error?.message || 'An unexpected error occurred'}
           </p>
 
           {/* Show stack trace in development */}
           {import.meta.env.DEV && this.state.errorInfo && (
             <details className="mb-4 max-w-lg w-full text-left">
-              <summary className="text-sm text-surface-500 cursor-pointer hover:text-surface-300">
+              <summary className="text-sm text-surface-500 cursor-pointer hover:text-surface-700">
                 Show details
               </summary>
-              <pre className="mt-2 p-4 bg-surface-800 rounded-lg text-xs text-surface-400 overflow-auto max-h-48">
+              <pre className="mt-2 p-4 bg-surface-200 rounded-lg text-xs text-surface-600 overflow-auto max-h-48 border border-surface-300">
                 {this.state.error?.stack}
                 {'\n\nComponent Stack:\n'}
                 {this.state.errorInfo.componentStack}

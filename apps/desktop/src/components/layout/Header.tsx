@@ -15,7 +15,7 @@ export function Header() {
     if (location.pathname === '/lorebooks') return 'Lorebooks';
     if (location.pathname.startsWith('/lorebooks/')) return 'Edit Lorebook';
     if (location.pathname === '/settings') return 'Settings';
-    if (location.pathname.startsWith('/chat/')) return null; // Chat has its own header
+    if (location.pathname.startsWith('/chat/')) return null;
     return 'Glee';
   };
 
@@ -26,25 +26,25 @@ export function Header() {
     return null;
   }
 
-  const showBackButton = location.pathname !== '/characters' && 
-    location.pathname !== '/personas' && 
-    location.pathname !== '/lorebooks' && 
+  const showBackButton = location.pathname !== '/characters' &&
+    location.pathname !== '/personas' &&
+    location.pathname !== '/lorebooks' &&
     location.pathname !== '/settings';
 
   return (
-    <header className="h-14 flex items-center justify-between px-6 border-b border-surface-700 bg-surface-900">
+    <header className="h-14 flex items-center justify-between px-6 border-b border-surface-200 bg-surface-50">
       <div className="flex items-center gap-4">
         {showBackButton && (
           <button
             onClick={() => navigate(-1)}
-            className="p-2 text-surface-400 hover:text-surface-100 hover:bg-surface-800 rounded-lg transition-colors"
+            className="p-2 text-surface-500 hover:text-surface-700 hover:bg-surface-100 rounded-lg transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
         )}
-        {title && <h1 className="text-lg font-semibold text-surface-100">{title}</h1>}
+        {title && <h1 className="text-lg font-semibold text-surface-900">{title}</h1>}
       </div>
 
       <div className="flex items-center gap-2">

@@ -41,18 +41,18 @@ export function WelcomeScreen() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-surface-900 p-8">
+    <div className="min-h-screen flex items-center justify-center bg-surface-100 p-8">
       <Card className="max-w-lg w-full text-center">
         {/* Logo */}
         <div className="mb-6">
-          <div className="w-20 h-20 mx-auto mb-4 bg-primary-600 rounded-2xl flex items-center justify-center">
+          <div className="w-20 h-20 mx-auto mb-4 bg-primary-500 rounded-2xl flex items-center justify-center">
             <span className="text-3xl font-bold text-white">G</span>
           </div>
-          <h1 className="text-3xl font-bold text-surface-100">Welcome to Glee</h1>
+          <h1 className="text-3xl font-bold text-surface-900">Welcome to Glee</h1>
         </div>
 
         {/* Tagline */}
-        <p className="text-lg text-surface-300 mb-8">
+        <p className="text-lg text-surface-600 mb-8">
           Your private AI character companion.
           <br />
           <span className="text-surface-500">Offline. Uncensored. Yours.</span>
@@ -87,7 +87,7 @@ export function WelcomeScreen() {
           </p>
           <button
             onClick={handleSkipDownload}
-            className="text-sm text-surface-500 hover:text-surface-300"
+            className="text-sm text-surface-500 hover:text-surface-700"
           >
             I already have a model file →
           </button>
@@ -107,11 +107,11 @@ function FeatureItem({
   description: string;
 }) {
   return (
-    <div className="flex items-start gap-4 p-3 bg-surface-700/50 rounded-lg">
+    <div className="flex items-start gap-4 p-3 bg-surface-100 rounded-lg border border-surface-200">
       <span className="text-2xl">{icon}</span>
       <div>
-        <h3 className="font-medium text-surface-100">{title}</h3>
-        <p className="text-sm text-surface-400">{description}</p>
+        <h3 className="font-medium text-surface-900">{title}</h3>
+        <p className="text-sm text-surface-500">{description}</p>
       </div>
     </div>
   );

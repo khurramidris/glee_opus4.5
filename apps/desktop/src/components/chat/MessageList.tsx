@@ -26,15 +26,15 @@ export function MessageList({
 }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-  
+
   // Get streaming message IDs
   const streamingIds = Object.keys(streamingMessages);
-  
+
   // Debug logging
   useEffect(() => {
     console.log('[MessageList] Render - messages:', messages.length, 'streaming:', streamingIds.length);
   }, [messages.length, streamingIds.length]);
-  
+
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     if (bottomRef.current) {
@@ -45,8 +45,15 @@ export function MessageList({
   return (
     <div
       ref={containerRef}
-      className="h-full overflow-y-auto px-4 py-4 space-y-4"
+      className="h-full overflow-y-auto px-6 py-4 space-y-2 bg-surface-100"
     >
+      {/* Date separator (placeholder) */}
+      <div className="flex justify-center py-4">
+        <span className="text-xs text-surface-400 bg-surface-200 px-3 py-1 rounded-full">
+          Today
+        </span>
+      </div>
+
       {/* Render all messages */}
       {messages.map((message) => (
         <MessageBubble
@@ -58,7 +65,7 @@ export function MessageList({
           getBranchSiblings={getBranchSiblings}
         />
       ))}
-      
+
       {/* Render streaming messages */}
       {streamingIds.map((messageId) => {
         const content = streamingContent(messageId);
@@ -70,7 +77,7 @@ export function MessageList({
           />
         );
       })}
-      
+
       {/* Scroll anchor */}
       <div ref={bottomRef} />
     </div>
