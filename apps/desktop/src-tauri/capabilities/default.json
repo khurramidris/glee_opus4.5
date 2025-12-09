@@ -2,11 +2,14 @@
   "schema": "https://schemas.tauri.app/config/2.0.0/capability",
   "identifier": "default",
   "description": "Default capabilities for Glee",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
     "core:event:default",
     "core:window:default",
+    "core:window:allow-start-dragging",
     "core:webview:default",
     "dialog:default",
     "dialog:allow-open",
@@ -14,7 +17,12 @@
     "fs:default",
     {
       "identifier": "fs:scope",
-      "allow": ["$APPDATA/**", "$RESOURCE/**", "$HOME/**", "$DOWNLOAD/**"]
+      "allow": [
+        "$APPDATA/**",
+        "$RESOURCE/**",
+        "$HOME/**",
+        "$DOWNLOAD/**"
+      ]
     },
     "fs:allow-read-text-file",
     "fs:allow-write-text-file",
