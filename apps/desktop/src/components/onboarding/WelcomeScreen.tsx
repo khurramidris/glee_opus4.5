@@ -1,15 +1,21 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { useSmartSetup } from '@/hooks/useSmartSetup';
 import { DownloadProgress } from './DownloadProgress';
 import { SetupComplete } from './SetupComplete';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 
-type OnboardingStep = 'welcome' | 'download' | 'complete';
+type OnboardingStep = 'analyzing' | 'welcome' | 'download' | 'complete';
 
 export function WelcomeScreen() {
-  const [step, setStep] = useState<OnboardingStep>('welcome');
+  const [step, setStep] = useState<OnboardingStep>('analyzing');
   const { setFirstRunComplete } = useSettingsStore();
+  const { status, checkStatus, loading } = useSmartSetup();
+
+  useEffect(() => {
+    checkStatus().then(() => setStep('welcome'));
+  }, [checkStatus]);
 
   const handleStartDownload = () => {
     setStep('download');
@@ -27,9 +33,22 @@ export function WelcomeScreen() {
     await setFirstRunComplete();
   };
 
+  if (step === 'analyzing' || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface-100 p-8">
+        <Card className="max-w-md w-full text-center p-8">
+          <div className="animate-spin w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-surface-900">Analyzing System...</h2>
+          <p className="text-surface-500 mt-2">Checking hardware for optimal performance</p>
+        </Card>
+      </div>
+    );
+  }
+
   if (step === 'download') {
     return (
       <DownloadProgress
+        variant={status?.recommended_variant || 'cpu'}
         onComplete={handleDownloadComplete}
         onSkip={handleSkipDownload}
       />
@@ -40,6 +59,9 @@ export function WelcomeScreen() {
     return <SetupComplete onContinue={handleComplete} />;
   }
 
+  const gpuName = status?.detected_gpu || "Standard Graphics";
+  const isGPU = status?.recommended_variant !== 'cpu';
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-surface-100 p-8">
       <Card className="max-w-lg w-full text-center">
@@ -49,6 +71,14 @@ export function WelcomeScreen() {
             <span className="text-3xl font-bold text-white">G</span>
           </div>
           <h1 className="text-3xl font-bold text-surface-900">Welcome to Glee</h1>
+          {status && (
+            <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-surface-100 rounded-full border border-surface-200">
+              <span className="w-2 h-2 rounded-full bg-green-500" />
+              <span className="text-xs font-medium text-surface-600">
+                {gpuName} Detected
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Tagline */}
@@ -61,26 +91,28 @@ export function WelcomeScreen() {
         {/* Features */}
         <div className="text-left space-y-4 mb-8">
           <FeatureItem
+            icon="🚀"
+            title="Optimized Performance"
+            description={isGPU
+              ? `We'll install the ${status?.recommended_variant?.toUpperCase()} engine for your GPU.`
+              : "We'll install the standard engine for your CPU."}
+          />
+          <FeatureItem
             icon="🔒"
             title="100% Private"
             description="Everything runs on your device. No cloud, no tracking."
           />
           <FeatureItem
             icon="💬"
-            title="Character Companions"
-            description="Create and chat with AI characters that remember you."
-          />
-          <FeatureItem
-            icon="🌳"
-            title="Branching Conversations"
-            description="Explore different paths and regenerate responses."
+            title="Ready out of the box"
+            description="We handle the complex setup so you don't have to."
           />
         </div>
 
         {/* Actions */}
         <div className="space-y-3">
           <Button onClick={handleStartDownload} className="w-full" size="lg">
-            Download AI Model & Get Started
+            Install & Get Started
           </Button>
           <p className="text-xs text-surface-500">
             ~2.5GB download • One-time setup • Works offline after

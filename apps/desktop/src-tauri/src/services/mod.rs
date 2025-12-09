@@ -785,7 +785,19 @@ impl DownloadService {
         
         let id = new_id();
         let fname = input.url.split('/').last().unwrap_or("model.gguf");
-        let dest = state.paths.model_file_path(fname);
+        
+        // If type is binary, we might be downloading a zip. 
+        // We trust the URL filename to have the correct extension.
+        
+        let dest = if input.download_type.as_deref() == Some("binary") {
+            let bin_dir = state.paths.data_dir.join("bin");
+            if !bin_dir.exists() {
+                std::fs::create_dir_all(&bin_dir)?;
+            }
+            bin_dir.join(fname)
+        } else {
+            state.paths.model_file_path(fname)
+        };
         
         let dl = Download {
             id: id.clone(),

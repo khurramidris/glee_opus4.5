@@ -52,4 +52,5 @@ export interface Download {
 export interface StartDownloadInput {
   url: string;
   checksum?: string;
+  downloadType?: 'model' | 'binary';
 }

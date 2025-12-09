@@ -530,6 +530,8 @@ pub struct Download {
 pub struct StartDownloadInput {
     pub url: String,
     pub checksum: Option<String>,
+    #[serde(default)]
+    pub download_type: Option<String>, // "model" or "binary"
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

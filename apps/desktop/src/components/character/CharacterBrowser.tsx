@@ -58,7 +58,7 @@ export function CharacterBrowser() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-surface-100">
+    <div className="h-full flex flex-col">
       {/* Search and Actions Bar */}
       <div className="flex items-center gap-4 p-4 border-b border-surface-200 bg-surface-50">
         <div className="flex-1 max-w-md">

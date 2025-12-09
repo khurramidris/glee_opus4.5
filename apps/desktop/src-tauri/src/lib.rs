@@ -146,6 +146,8 @@ pub fn run() {
             crate::commands::export::export_all_data,
             crate::commands::export::import_character,
             crate::commands::export::import_data,
+            // Setup commands
+            crate::commands::setup::check_setup_status,
         ]);
 
     builder

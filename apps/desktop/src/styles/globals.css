@@ -54,7 +54,8 @@
   }
 
   body {
-    @apply bg-surface-100 text-surface-800 font-sans antialiased;
+    @apply text-surface-800 font-sans antialiased;
+    background-color: rgb(249, 243, 97);
     overflow: hidden;
   }
 
@@ -81,6 +82,7 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -126,11 +128,19 @@
   .scrollbar-thin {
     scrollbar-width: thin;
   }
-  
+
   /* Blinking cursor animation for streaming */
   @keyframes blink {
-    0%, 50% { opacity: 1; }
-    51%, 100% { opacity: 0; }
+
+    0%,
+    50% {
+      opacity: 1;
+    }
+
+    51%,
+    100% {
+      opacity: 0;
+    }
   }
 
   .animate-blink {

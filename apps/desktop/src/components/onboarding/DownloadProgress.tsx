@@ -1,18 +1,30 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useDownload } from '@/hooks/useDownload';
 import { useUIStore } from '@/stores/uiStore';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Progress } from '@/components/ui/Progress';
 import { formatBytes, formatSpeed } from '@/lib/format';
-import { DEFAULT_MODEL_URL } from '@/lib/constants';
+
+// Placeholder URLs - in production these would come from config/env
+// Placeholder URLs - in production these would come from config/env
+// Production R2 URLs
+// Base: https://pub-bd4eb9ce19dd48f1b73327a44e10e493.r2.dev
+const BINARY_URLS = {
+  cuda: "https://pub-bd4eb9ce19dd48f1b73327a44e10e493.r2.dev/bin/llama-cuda.zip",
+  rocm: "https://pub-bd4eb9ce19dd48f1b73327a44e10e493.r2.dev/bin/llama-rocm.zip",
+  cpu: "https://pub-bd4eb9ce19dd48f1b73327a44e10e493.r2.dev/bin/llama-cpu.zip",
+};
+
+const MODEL_URL = "https://pub-bd4eb9ce19dd48f1b73327a44e10e493.r2.dev/models/tiny-llm.gguf";
 
 interface DownloadProgressProps {
+  variant: string;
   onComplete: () => void;
   onSkip: () => void;
 }
 
-export function DownloadProgress({ onComplete, onSkip }: DownloadProgressProps) {
+export function DownloadProgress({ variant, onComplete, onSkip }: DownloadProgressProps) {
   const {
     currentDownload,
     progress,
@@ -26,24 +38,55 @@ export function DownloadProgress({ onComplete, onSkip }: DownloadProgressProps) 
   } = useDownload();
   const { addToast } = useUIStore();
 
-  // Use a ref to track if we've initiated the download to prevent React StrictMode double-fire
+  const [phase, setPhase] = useState<'binary' | 'model'>('binary');
   const downloadInitiated = useRef(false);
 
   useEffect(() => {
     if (!downloadInitiated.current) {
       downloadInitiated.current = true;
-      startDownload({ url: DEFAULT_MODEL_URL }).catch((e) => {
-        addToast({ type: 'error', message: `Failed to start download: ${e}` });
-      });
+      startBinaryDownload();
     }
-  }, [startDownload, addToast]);
+  }, []);
+
+  const startBinaryDownload = async () => {
+    setPhase('binary');
+    const url = BINARY_URLS[variant as keyof typeof BINARY_URLS] || BINARY_URLS.cpu;
+    // Note: The backend needs to know we are downloading a binary to put it in valid bin dir
+    // For now we reuse the startDownload which likely just puts it in default download dir
+    // We might need to extend startDownload input to specify 'target_dir' or 'type'
+
+    // Assuming startDownload works generically for now:
+    try {
+      await startDownload({ url, downloadType: 'binary' });
+    } catch (e) {
+      addToast({ type: 'error', message: `Failed to download engine: ${e}` });
+    }
+  };
+
+  const startModelDownload = async () => {
+    setPhase('model');
+    try {
+      await startDownload({ url: MODEL_URL, downloadType: 'model' });
+    } catch (e) {
+      addToast({ type: 'error', message: `Failed to download model: ${e}` });
+    }
+  };
 
   useEffect(() => {
     if (currentDownload?.status === 'completed') {
-      setComplete();
-      onComplete();
+      if (phase === 'binary') {
+        // Binary done, start model
+        // Small delay for UX
+        setTimeout(() => {
+          startModelDownload();
+        }, 1000);
+      } else {
+        // Model done, all done
+        setComplete();
+        onComplete();
+      }
     }
-  }, [currentDownload?.status, onComplete, setComplete]);
+  }, [currentDownload?.status]);
 
   const percentage = progress
     ? Math.round((progress.downloadedBytes / Math.max(progress.totalBytes, 1)) * 100)
@@ -67,10 +110,12 @@ export function DownloadProgress({ onComplete, onSkip }: DownloadProgressProps) 
       <Card className="max-w-lg w-full">
         <div className="text-center mb-6">
           <h1 className="text-2xl font-bold text-surface-900 mb-2">
-            Downloading AI Model
+            {phase === 'binary' ? 'Setting up Engine' : 'Downloading Brain'}
           </h1>
           <p className="text-surface-600">
-            This is a one-time download. Glee works offline after this.
+            {phase === 'binary'
+              ? `Installing optimized AI engine for your ${variant.toUpperCase()}...`
+              : 'Downloading the AI model (approx 2.5GB)...'}
           </p>
         </div>
 
@@ -97,7 +142,9 @@ export function DownloadProgress({ onComplete, onSkip }: DownloadProgressProps) 
           {isDownloading ? (
             <>
               <div className="w-2 h-2 bg-primary-500 rounded-full animate-pulse" />
-              <span className="text-surface-600">Downloading...</span>
+              <span className="text-surface-600">
+                {phase === 'binary' ? 'Downloading Engine...' : 'Downloading Model...'}
+              </span>
             </>
           ) : currentDownload?.status === 'paused' ? (
             <>
@@ -112,6 +159,13 @@ export function DownloadProgress({ onComplete, onSkip }: DownloadProgressProps) 
           )}
         </div>
 
+        {/* Steps indicator */}
+        <div className="flex items-center justify-center gap-2 mb-6 text-sm">
+          <span className={phase === 'binary' ? "font-bold text-primary-600" : "text-surface-400"}>1. Engine</span>
+          <span className="text-surface-300">→</span>
+          <span className={phase === 'model' ? "font-bold text-primary-600" : "text-surface-400"}>2. Model</span>
+        </div>
+
         {/* Actions */}
         <div className="flex gap-3">
           <Button variant="secondary" onClick={handleCancel} className="flex-1">
@@ -124,16 +178,6 @@ export function DownloadProgress({ onComplete, onSkip }: DownloadProgressProps) 
           >
             {isDownloading ? 'Pause' : 'Resume'}
           </Button>
-        </div>
-
-        {/* Tips */}
-        <div className="mt-6 p-4 bg-surface-100 rounded-lg border border-surface-200">
-          <h4 className="text-sm font-medium text-surface-700 mb-2">While you wait...</h4>
-          <ul className="text-sm text-surface-500 space-y-1">
-            <li>• The download will resume if interrupted</li>
-            <li>• You can browse characters while downloading</li>
-            <li>• Larger models = better quality but slower</li>
-          </ul>
         </div>
       </Card>
     </div>

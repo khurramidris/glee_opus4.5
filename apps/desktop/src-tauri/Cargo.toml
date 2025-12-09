@@ -29,6 +29,7 @@ base64 = "0.21"
 sha2 = "0.10"
 parking_lot = "0.12"
 directories = "5.0"
+zip = "6.0.0"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["wincon"] }

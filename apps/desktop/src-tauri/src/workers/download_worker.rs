@@ -140,16 +140,42 @@ async fn process_download(
     match result {
         Ok(DownloadResult::Completed) => {
             tracing::info!("Download completed: {}", id);
+            
+            // Handle ZIP extraction if needed
+            let path = std::path::Path::new(&download.destination_path);
+            if let Some(ext) = path.extension() {
+                if ext == "zip" {
+                    tracing::info!("Detected ZIP file, extracting...");
+                    if let Err(e) = extract_zip(path) {
+                        tracing::error!("Failed to extract ZIP: {}", e);
+                        let _ = DownloadRepo::update_status(&state.db, &id, DownloadStatus::Failed, Some(&format!("Extraction failed: {}", e)));
+                         let _ = app_handle.emit("download:error", serde_json::json!({
+                            "id": id,
+                            "error": format!("Extraction failed: {}", e),
+                        }));
+                        return;
+                    }
+                    tracing::info!("Extraction complete");
+                    // Optionally delete zip? Let's keep it for now or delete it.
+                    // std::fs::remove_file(path).ok(); 
+                }
+            }
+            
             let _ = DownloadRepo::update_status(&state.db, &id, DownloadStatus::Completed, None);
             
-            // Update model path in settings
-            let _ = SettingsRepo::set(&state.db, "model.path", &download.destination_path);
+            // Update model path in settings ONLY if it's a model
+            // Simple heuristic: if it ends in .gguf, it's a model
+            if download.destination_path.ends_with(".gguf") {
+                let _ = SettingsRepo::set(&state.db, "model.path", &download.destination_path);
+            }
             
-            // Emit model status event
-            let _ = app_handle.emit("model:status", ModelStatusEvent {
-                status: "ready".to_string(),
-                message: Some("Model downloaded successfully".to_string()),
-            });
+            // Emit model status event if model
+            if download.destination_path.ends_with(".gguf") {
+                let _ = app_handle.emit("model:status", ModelStatusEvent {
+                    status: "ready".to_string(),
+                    message: Some("Model downloaded successfully".to_string()),
+                });
+            }
             
             // Also emit download complete
             let _ = app_handle.emit("download:complete", serde_json::json!({
@@ -187,6 +213,34 @@ enum DownloadResult {
     Completed,
     Paused,
     Cancelled,
+}
+
+fn extract_zip(archive_path: &std::path::Path) -> Result<(), String> {
+    let file = std::fs::File::open(archive_path).map_err(|e| e.to_string())?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+    
+    let parent_dir = archive_path.parent().ok_or("Invalid path")?;
+    
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
+        let outpath = match file.enclosed_name() {
+            Some(path) => parent_dir.join(path),
+            None => continue,
+        };
+
+        if file.name().ends_with('/') {
+            std::fs::create_dir_all(&outpath).map_err(|e| e.to_string())?;
+        } else {
+            if let Some(p) = outpath.parent() {
+                if !p.exists() {
+                    std::fs::create_dir_all(&p).map_err(|e| e.to_string())?;
+                }
+            }
+            let mut outfile = std::fs::File::create(&outpath).map_err(|e| e.to_string())?;
+            std::io::copy(&mut file, &mut outfile).map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
 }
 
 async fn do_download(

@@ -20,7 +20,7 @@
         "minHeight": 600,
         "resizable": true,
         "fullscreen": false,
-        "decorations": true,
+        "decorations": false,
         "transparent": false,
         "center": true
       }
@@ -31,7 +31,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": [
+      "nsis"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -40,8 +42,7 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "resources/*": "./",
-      "models/*": "./models/"
+      "resources/*": "./"
     }
   },
   "plugins": {
