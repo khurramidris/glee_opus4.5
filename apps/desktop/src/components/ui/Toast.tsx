@@ -6,10 +6,10 @@ export function Toast({ id, type, message }: ToastMessage) {
   const removeToast = useUIStore((s) => s.removeToast);
 
   const variants = {
-    success: 'bg-green-600/90 text-white',
-    error: 'bg-red-600/90 text-white',
-    info: 'bg-primary-600/90 text-white',
-    warning: 'bg-yellow-600/90 text-white',
+    success: 'bg-accent-green text-white',
+    error: 'bg-accent-coral text-white',
+    info: 'bg-accent-blue text-white',
+    warning: 'bg-accent-amber text-white',
   };
 
   const icons = {

@@ -22,7 +22,6 @@ export function ChatInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isOverLimit = content.length > MAX_MESSAGE_LENGTH;
 
-  // Auto-resize textarea
   useEffect(() => {
     const textarea = textareaRef.current;
     if (textarea) {
@@ -40,7 +39,6 @@ export function ChatInput({
       return;
     }
 
-    // Clear immediately for UX responsiveness
     const savedContent = content;
     setContent('');
     setIsSending(true);
@@ -54,7 +52,6 @@ export function ChatInput({
       console.log('[ChatInput] Sent successfully, result:', !!result);
     } catch (e) {
       console.error('[ChatInput] Error sending:', e);
-      // Restore text on failure
       setContent(savedContent);
     } finally {
       setIsSending(false);
@@ -77,7 +74,7 @@ export function ChatInput({
   const canSend = content.trim().length > 0 && !disabled && !isOverLimit && !isGenerating && !isSending;
 
   return (
-    <div className="flex flex-col gap-2 p-4 bg-surface-50">
+    <div className="flex flex-col gap-2 p-4 pt-0">
       {content.length > MAX_MESSAGE_LENGTH * 0.9 && (
         <div className={cn(
           'text-xs text-right',
@@ -87,15 +84,8 @@ export function ChatInput({
         </div>
       )}
 
-      <div className="flex items-end gap-3">
-        {/* Emoji Button */}
-        <button className="p-2 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded-full transition-colors flex-shrink-0">
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        </button>
-
-        <div className="flex-1 relative">
+      <div className="max-w-4xl mx-auto w-full">
+        <div className="relative bg-surface-100/80 border border-primary-400/40 rounded-2xl shadow-sm transition-all duration-200 focus-within:border-primary-500/60 focus-within:shadow-md focus-within:bg-surface-100">
           <textarea
             ref={textareaRef}
             value={content}
@@ -105,53 +95,66 @@ export function ChatInput({
             disabled={disabled || isSending}
             rows={1}
             className={cn(
-              'w-full px-4 py-3 bg-surface-100 border border-surface-200 rounded-2xl',
+              'w-full px-5 py-4 pr-36 bg-transparent border-none rounded-2xl',
               'text-surface-800 placeholder-surface-400 resize-none',
-              'focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500',
+              'focus:outline-none',
               'disabled:opacity-50 disabled:cursor-not-allowed',
               'max-h-[200px] overflow-y-auto',
-              isOverLimit && 'border-red-500 focus:ring-red-500/30'
+              isOverLimit && 'text-red-500'
             )}
           />
-        </div>
+          
+          {/* Action buttons inside input */}
+          <div className="absolute right-3 bottom-3 flex items-center gap-2">
+            {/* Mic Button */}
+            <button
+              type="button"
+              className="p-2 text-surface-400 hover:text-primary-600 rounded-lg transition-colors"
+              title="Voice input"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+              </svg>
+            </button>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-1 flex-shrink-0">
-          <button className="p-2 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded-full transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          </button>
-          <button className="p-2 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded-full transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-          </button>
-        </div>
+            {/* Image Button */}
+            <button
+              type="button"
+              className="p-2 text-surface-400 hover:text-primary-600 rounded-lg transition-colors"
+              title="Attach image"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </button>
 
-        {/* Send/Stop Button */}
-        {isGenerating ? (
-          <button
-            onClick={onStop}
-            className="px-5 py-2.5 bg-surface-200 text-surface-700 font-medium rounded-2xl hover:bg-surface-300 transition-colors flex-shrink-0"
-          >
-            Stop
-          </button>
-        ) : (
-          <button
-            onClick={handleSend}
-            disabled={!canSend}
-            className={cn(
-              'px-5 py-2.5 font-medium rounded-2xl transition-colors flex-shrink-0',
-              canSend
-                ? 'bg-primary-500 text-white hover:bg-primary-600'
-                : 'bg-surface-200 text-surface-400 cursor-not-allowed'
+            {/* Send/Stop Button */}
+            {isGenerating ? (
+              <button
+                onClick={onStop}
+                className="px-4 py-2 flex items-center gap-2 bg-surface-300/80 text-surface-700 rounded-xl hover:bg-surface-300 transition-colors font-medium text-sm"
+              >
+                Stop
+              </button>
+            ) : (
+              <button
+                onClick={handleSend}
+                disabled={!canSend}
+                className={cn(
+                  'px-4 py-2 flex items-center gap-2 rounded-xl transition-all duration-200 font-medium text-sm',
+                  canSend
+                    ? 'bg-primary-600 text-white hover:bg-primary-700'
+                    : 'bg-surface-300/60 text-surface-400 cursor-not-allowed'
+                )}
+              >
+                Send
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+              </button>
             )}
-          >
-            {isSending ? 'Sending...' : 'Send'}
-          </button>
-        )}
+          </div>
+        </div>
       </div>
     </div>
   );

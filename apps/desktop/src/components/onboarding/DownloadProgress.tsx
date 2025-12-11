@@ -148,7 +148,7 @@ export function DownloadProgress({ variant, onComplete, onSkip }: DownloadProgre
             </>
           ) : currentDownload?.status === 'paused' ? (
             <>
-              <div className="w-2 h-2 bg-yellow-400 rounded-full" />
+              <div className="w-2 h-2 bg-surface-500 rounded-full" />
               <span className="text-surface-600">Paused</span>
             </>
           ) : (

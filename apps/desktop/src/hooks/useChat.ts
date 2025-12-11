@@ -90,31 +90,37 @@ export function useChat(conversationId: string) {
     console.log('[useChat] sendMessage called:', content);
     const result = await store.sendMessage(content);
     console.log('[useChat] sendMessage result:', result?.id);
-    if (!result && store.error) {
-      addToast({ type: 'error', message: store.error });
+    // Get fresh error state after the async operation
+    const currentError = useChatStore.getState().error;
+    if (!result && currentError) {
+      console.error('[useChat] sendMessage error:', currentError);
+      addToast({ type: 'error', message: currentError });
     }
     return result;
   }, [store, addToast]);
   
   const regenerate = useCallback(async (messageId: string) => {
     await store.regenerateMessage(messageId);
-    if (store.error) {
-      addToast({ type: 'error', message: store.error });
+    const currentError = useChatStore.getState().error;
+    if (currentError) {
+      addToast({ type: 'error', message: currentError });
     }
   }, [store, addToast]);
   
   const edit = useCallback(async (messageId: string, content: string) => {
     const result = await store.editMessage(messageId, content);
-    if (!result && store.error) {
-      addToast({ type: 'error', message: store.error });
+    const currentError = useChatStore.getState().error;
+    if (!result && currentError) {
+      addToast({ type: 'error', message: currentError });
     }
     return result;
   }, [store, addToast]);
   
   const switchBranch = useCallback(async (messageId: string) => {
     await store.switchBranch(messageId);
-    if (store.error) {
-      addToast({ type: 'error', message: store.error });
+    const currentError = useChatStore.getState().error;
+    if (currentError) {
+      addToast({ type: 'error', message: currentError });
     }
   }, [store, addToast]);
   

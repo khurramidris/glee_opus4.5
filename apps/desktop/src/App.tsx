@@ -19,6 +19,12 @@ import { useCharacterStore } from '@/stores/characterStore';
 import { usePersonaStore } from '@/stores/personaStore';
 import { useConversationStore } from '@/stores/conversationStore';
 
+interface ToastItem {
+  id: string;
+  type: 'success' | 'error' | 'info' | 'warning';
+  message: string;
+}
+
 function LoadingFallback() {
   return (
     <SplashScreen status="Loading content..." />
@@ -30,23 +36,22 @@ export default function App() {
   const { fetchCharacters } = useCharacterStore();
   const { fetchPersonas } = usePersonaStore();
   const { fetchConversations } = useConversationStore();
-  const toasts = useUIStore((s) => s.toasts);
+  const addToast = useUIStore((s) => s.addToast);
+  const toasts = useUIStore((s) => s.toasts) as ToastItem[];
   const autoStartAttempted = useRef(false);
 
-  // Loading state tracking for splash screen
   const [loadingPhase, setLoadingPhase] = useState<'init' | 'settings' | 'data' | 'model' | 'ready'>('init');
   const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Phase 1: Load settings
         setLoadingPhase('settings');
         setLoadingProgress(10);
         await fetchSettings();
         setLoadingProgress(30);
 
-        // Phase 2: Load app data
         setLoadingPhase('data');
         setLoadingProgress(40);
         await Promise.all([
@@ -56,20 +61,21 @@ export default function App() {
         ]);
         setLoadingProgress(70);
       } catch (e) {
+        const errorMessage = e instanceof Error ? e.message : 'Failed to load initial data';
         console.error("Failed to load initial data", e);
+        setLoadError(errorMessage);
+        addToast({ type: 'error', message: errorMessage });
       }
     };
     loadData();
   }, []);
 
-  // Auto-start sidecar after settings are loaded and first run is complete
   useEffect(() => {
     if (settings && !settings.app.firstRun && !autoStartAttempted.current) {
       autoStartAttempted.current = true;
       setLoadingPhase('model');
       setLoadingProgress(80);
 
-      // Start model loading
       startSidecar()
         .then(() => {
           setLoadingProgress(100);
@@ -77,19 +83,17 @@ export default function App() {
         })
         .catch(err => {
           console.log('Model auto-start failed (may not be installed yet):', err);
-          // Still mark as ready so user can access the app
           setLoadingProgress(100);
           setTimeout(() => setLoadingPhase('ready'), 300);
         });
     } else if (settings && settings.app.firstRun) {
-      // First run - mark as ready immediately
       setLoadingProgress(100);
       setLoadingPhase('ready');
     }
   }, [settings, startSidecar]);
 
-  // Get status message based on loading phase
   const getLoadingStatus = () => {
+    if (loadError) return `Error: ${loadError}`;
     switch (loadingPhase) {
       case 'init': return 'Initializing...';
       case 'settings': return 'Loading settings...';
@@ -99,12 +103,10 @@ export default function App() {
     }
   };
 
-  // Show splash screen while initializing
   if (!settings || (loadingPhase !== 'ready' && !settings.app.firstRun)) {
     return <SplashScreen status={getLoadingStatus()} progress={loadingProgress} />;
   }
 
-  // Show onboarding if first run
   if (settings.app.firstRun) {
     return (
       <ErrorBoundary>
@@ -139,8 +141,7 @@ export default function App() {
   );
 }
 
-// Helper component to render toasts
-function ToastContainer({ toasts }: { toasts: any[] }) {
+function ToastContainer({ toasts }: { toasts: ToastItem[] }) {
   return (
     <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
       {toasts.map((toast) => (

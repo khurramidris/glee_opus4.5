@@ -4,60 +4,83 @@
 
 @layer base {
   :root {
-    /* Light Theme Variables (Default) */
-    /* User requested background: rgb(249, 243, 97) = #F9F361 */
-    --color-surface-50: #F9F361;
-    --color-surface-100: #F9F361;
-    --color-surface-200: #f5f5f4;
-    --color-surface-300: #e7e5e4;
-    --color-surface-400: #a8a29e;
-    --color-surface-500: #78716c;
-    --color-surface-600: #57534e;
-    --color-surface-700: #44403c;
-    --color-surface-750: #3a3733;
-    --color-surface-800: #292524;
-    --color-surface-900: #1c1917;
-    --color-surface-950: #0c0a09;
+    /* Professional Color Scheme: Yellow Background + Purple Panels */
+    
+    /* Main Background: Warm Golden Yellow */
+    --color-background: #F5C842; /* Vibrant Gold/Yellow - Main app background */
+    --color-background-muted: #E8B93A; /* Slightly darker gold for contrast */
+    
+    /* Surface Colors: For panels and cards (Purple-based) */
+    --color-surface-50: #FAF7FF; /* Lightest purple-white for content areas */
+    --color-surface-100: #F3EDFF; /* Very light lavender */
+    --color-surface-200: #E8DDFF; /* Light purple for borders/dividers */
+    --color-surface-300: #D4C4F9; /* Medium-light purple */
+    --color-surface-400: #A894D9; /* Muted purple */
+    --color-surface-500: #7E6BAD; /* Mid purple */
+    --color-surface-600: #5E4D8B; /* Dark purple */
+    --color-surface-700: #463A6E; /* Deeper purple */
+    --color-surface-750: #3B3160; /* Very deep purple */
+    --color-surface-800: #2D2548; /* Near-black purple for text */
+    --color-surface-900: #1E1832; /* Darkest purple */
+    --color-surface-950: #110E1F;
 
-    /* Gold/Amber Primary Palette */
-    --color-primary-50: #fffbeb;
-    --color-primary-100: #fef3c7;
-    --color-primary-200: #fde68a;
-    --color-primary-300: #fcd34d;
-    --color-primary-400: #fbbf24;
-    --color-primary-500: #f59e0b;
-    --color-primary-600: #d97706;
-    --color-primary-700: #b45309;
-    --color-primary-800: #92400e;
-    --color-primary-900: #78350f;
-    --color-primary-950: #451a03;
+    /* Primary Palette: Deep Purple for accents and interactive elements */
+    --color-primary-50: #F5F3FF;
+    --color-primary-100: #EDE9FE;
+    --color-primary-200: #DDD6FE;
+    --color-primary-300: #C4B5FD;
+    --color-primary-400: #A78BFA;
+    --color-primary-500: #8B5CF6; /* Main purple accent */
+    --color-primary-600: #7C3AED;
+    --color-primary-700: #6D28D9;
+    --color-primary-800: #5B21B6;
+    --color-primary-900: #4C1D95;
+    --color-primary-950: #2E1065;
+
+    /* Panel Background: Rich Purple */
+    --color-panel: #6D28D9; /* Primary purple for panels */
+    --color-panel-light: #7C3AED; /* Lighter panel variant */
+    --color-panel-dark: #5B21B6; /* Darker panel variant */
 
     /* Accent colors */
-    --color-accent-coral: #ef6351;
-    --color-accent-green: #22c55e;
-    --color-accent-blue: #3b82f6;
+    --color-accent-coral: #E05252;
+    --color-accent-green: #3F8C65;
+    --color-accent-blue: #4B6BFB;
+    --color-accent-amber: #F59E0B;
   }
 
   /* Dark Theme Overrides */
   .theme-dark {
-    --color-surface-50: #0c0a09;
-    --color-surface-100: #1c1917;
-    --color-surface-200: #292524;
-    --color-surface-300: #44403c;
-    --color-surface-400: #57534e;
-    --color-surface-500: #78716c;
-    --color-surface-600: #a8a29e;
-    --color-surface-700: #d6d3d1;
-    --color-surface-750: #e7e5e4;
-    --color-surface-800: #f5f5f4;
-    --color-surface-900: #fafafa;
-    --color-surface-950: #ffffff;
+    --color-background: #2A2035;
+    --color-background-muted: #231B2D;
+    
+    --color-surface-50: #1E1832;
+    --color-surface-100: #262040;
+    --color-surface-200: #332B52;
+    --color-surface-300: #443A6A;
+    --color-surface-400: #5E4D8B;
+    --color-surface-500: #7E6BAD;
+    --color-surface-600: #A894D9;
+    --color-surface-700: #D4C4F9;
+    --color-surface-750: #E8DDFF;
+    --color-surface-800: #F3EDFF;
+    --color-surface-900: #FAF7FF;
+    --color-surface-950: #FFFFFF;
+    
+    --color-panel: #3D2E5C;
+    --color-panel-light: #4A3870;
+    --color-panel-dark: #2E2248;
   }
 
   body {
     @apply text-surface-800 font-sans antialiased;
-    background-color: rgb(249, 243, 97);
+    background-color: var(--color-background);
     overflow: hidden;
+    font-family: 'Inter', sans-serif;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Space Grotesk', sans-serif;
   }
 
   /* Custom Scrollbar */
@@ -71,12 +94,12 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-surface-300 rounded-full;
+    @apply bg-surface-400 rounded-full;
     border: 1px solid transparent;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-surface-400;
+    @apply bg-surface-500;
   }
 
   /* Hide scrollbar utility */
@@ -93,35 +116,44 @@
 @layer components {
   .btn {
     @apply px-4 py-2 rounded-lg font-medium transition-colors duration-150;
-    @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-surface-50;
+    @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
+    --tw-ring-color: var(--color-primary-500);
+    --tw-ring-offset-color: var(--color-surface-50);
   }
 
-  /* Panel styles */
+  /* Panel styles - Purple themed */
   .panel {
-    @apply bg-surface-50 border-r border-surface-200;
+    background-color: var(--color-panel);
+    border-right: 1px solid rgba(109, 40, 217, 0.3);
   }
 
   .panel-header {
-    @apply px-4 py-3 border-b border-surface-200 font-semibold text-surface-900;
+    @apply px-4 py-3 font-semibold text-white;
+    border-bottom: 1px solid rgba(124, 58, 237, 0.3);
   }
 
   /* Chat bubble styles */
   .bubble-user {
-    @apply bg-primary-500 text-white rounded-2xl rounded-br-md px-4 py-2.5;
+    @apply bg-primary-600 text-white rounded-2xl rounded-br-md px-4 py-2.5 shadow-sm;
   }
 
   .bubble-ai {
-    @apply bg-surface-200 text-surface-800 rounded-2xl rounded-bl-md px-4 py-2.5;
+    @apply bg-surface-100 text-surface-800 rounded-2xl rounded-bl-md px-4 py-2.5 shadow-sm border border-surface-200;
   }
 
   /* Contact item styles */
   .contact-item {
     @apply flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-200;
-    @apply hover:bg-surface-100;
+  }
+  
+  .contact-item:hover {
+    background-color: rgba(124, 58, 237, 0.2);
   }
 
   .contact-item.active {
-    @apply bg-surface-100;
+    @apply shadow-sm;
+    background-color: rgba(139, 92, 246, 0.3);
+    box-shadow: inset 0 0 0 1px rgba(167, 139, 250, 0.5);
   }
 }
 
@@ -132,14 +164,10 @@
 
   /* Blinking cursor animation for streaming */
   @keyframes blink {
-
-    0%,
-    50% {
+    0%, 50% {
       opacity: 1;
     }
-
-    51%,
-    100% {
+    51%, 100% {
       opacity: 0;
     }
   }
@@ -159,6 +187,27 @@
 
   /* Glow effect for active states */
   .glow-primary {
-    box-shadow: 0 0 12px rgba(245, 158, 11, 0.3);
+    box-shadow: 0 0 12px rgba(139, 92, 246, 0.4);
+  }
+
+  /* Background utilities for new color scheme */
+  .bg-app {
+    background-color: var(--color-background);
+  }
+  
+  .bg-app-muted {
+    background-color: var(--color-background-muted);
+  }
+  
+  .bg-panel {
+    background-color: var(--color-panel);
+  }
+  
+  .bg-panel-light {
+    background-color: var(--color-panel-light);
+  }
+  
+  .bg-panel-dark {
+    background-color: var(--color-panel-dark);
   }
 }

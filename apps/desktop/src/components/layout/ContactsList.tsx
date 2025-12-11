@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useCharacterStore } from '@/stores/characterStore';
 import { useConversationStore } from '@/stores/conversationStore';
@@ -6,39 +6,63 @@ import { Avatar } from '@/components/ui/Avatar';
 import { cn } from '@/lib/utils';
 import { commands } from '@/lib/commands';
 
+const STATUS_LIST = ['Online', 'Away', 'Active', 'Idle'] as const;
+type CharacterStatus = typeof STATUS_LIST[number];
+
+function getRandomStatus(id: string): CharacterStatus {
+    const hash = id.split('').reduce((a, b) => ((a << 5) - a + b.charCodeAt(0)) | 0, 0);
+    return STATUS_LIST[Math.abs(hash) % STATUS_LIST.length];
+}
+
+function getStatusColor(status: CharacterStatus): string {
+    switch (status) {
+        case 'Online': return 'bg-green-400';
+        case 'Away': return 'bg-yellow-400';
+        case 'Active': return 'bg-primary-300';
+        case 'Idle': return 'bg-white/50';
+    }
+}
+
 export function ContactsList() {
     const navigate = useNavigate();
     const location = useLocation();
     const { characters } = useCharacterStore();
     const { conversations } = useConversationStore();
     const [isStartingChat, setIsStartingChat] = useState<string | null>(null);
+    const [searchQuery, _setSearchQuery] = useState('');
 
-    // Get current chat conversation ID from URL
     const currentConversationId = location.pathname.startsWith('/chat/')
         ? location.pathname.split('/chat/')[1]
         : null;
 
-    // Sort characters - those with recent conversations first
-    const sortedCharacters = [...characters].sort((a, b) => {
-        const aConv = conversations.find(c => c.characters?.some(char => char.id === a.id));
-        const bConv = conversations.find(c => c.characters?.some(char => char.id === b.id));
-        if (aConv && !bConv) return -1;
-        if (!aConv && bConv) return 1;
-        return a.name.localeCompare(b.name);
-    });
+    const characterStatuses = useMemo(() => {
+        const statuses: Record<string, CharacterStatus> = {};
+        characters.forEach(c => {
+            statuses[c.id] = getRandomStatus(c.id);
+        });
+        return statuses;
+    }, [characters]);
+
+    const sortedCharacters = [...characters]
+        .filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()))
+        .sort((a, b) => {
+            const aConv = conversations.find(c => c.characters?.some(char => char.id === a.id));
+            const bConv = conversations.find(c => c.characters?.some(char => char.id === b.id));
+            if (aConv && !bConv) return -1;
+            if (!aConv && bConv) return 1;
+            return a.name.localeCompare(b.name);
+        });
 
     const handleCharacterClick = async (characterId: string) => {
-        if (isStartingChat) return; // Prevent double-clicks
+        if (isStartingChat) return;
 
         setIsStartingChat(characterId);
         try {
-            // Use the same approach as CharacterBrowser
             const existing = await commands.findConversationByCharacter(characterId);
 
             if (existing) {
                 navigate(`/chat/${existing.id}`);
             } else {
-                // Create a new conversation
                 const conversation = await commands.createConversation({
                     characterIds: [characterId],
                 });
@@ -52,63 +76,67 @@ export function ContactsList() {
     };
 
     return (
-        <div className="w-56 flex flex-col bg-surface-50 border-r border-surface-200 h-full">
-            {/* Header */}
-            <div className="px-4 py-3 border-b border-surface-200">
-                <div className="flex items-center gap-2">
-                    <Avatar
-                        fallback="M"
-                        size="sm"
-                        className="bg-gradient-to-br from-teal-400 to-teal-500"
-                    />
-                    <span className="font-medium text-surface-800">Mear</span>
+        <div className="w-64 flex flex-col bg-panel rounded-2xl h-full overflow-hidden">
+            {/* Header with Logo */}
+            <div className="px-5 py-4 border-b border-white/10">
+                <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shadow-lg">
+                        <span className="text-white font-bold text-lg font-display">G</span>
+                    </div>
+                    <span className="font-bold text-xl text-white font-display tracking-tight">Glee</span>
                 </div>
             </div>
 
-            {/* Search (optional) */}
-            <div className="px-3 py-2">
-                <div className="relative">
-                    <input
-                        type="text"
-                        placeholder="Search..."
-                        className="w-full px-3 py-1.5 pl-8 text-sm bg-surface-100 border border-surface-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 text-surface-700 placeholder-surface-400"
-                    />
-                    <svg className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                </div>
+            {/* AI Characters Section */}
+            <div className="px-5 pt-5 pb-3">
+                <h3 className="text-sm font-semibold text-white/80 tracking-wide">AI Characters</h3>
             </div>
 
             {/* Character List */}
-            <div className="flex-1 overflow-y-auto px-2 py-1 no-scrollbar">
+            <div className="flex-1 overflow-y-auto px-3 py-1 no-scrollbar space-y-1">
                 {sortedCharacters.map((character) => {
                     const conv = conversations.find(c => c.characters?.some(char => char.id === character.id));
                     const isActive = conv && currentConversationId === conv.id;
                     const isLoading = isStartingChat === character.id;
+                    const status = characterStatuses[character.id];
+                    const personality = character.personality?.split(',')[0]?.trim() || character.tags?.[0] || 'Creative';
 
                     return (
                         <div
                             key={character.id}
                             onClick={() => handleCharacterClick(character.id)}
                             className={cn(
-                                'contact-item group',
-                                isActive && 'active bg-surface-100',
+                                'group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer',
+                                isActive
+                                    ? 'bg-white/20 border border-white/30'
+                                    : 'hover:bg-white/10 border border-transparent',
                                 isLoading && 'opacity-50 pointer-events-none'
                             )}
                         >
-                            <Avatar
-                                src={character.avatarPath}
-                                fallback={character.name}
-                                size="md"
-                            />
+                            <div className="relative flex-shrink-0">
+                                <Avatar
+                                    src={character.avatarPath}
+                                    fallback={character.name}
+                                    size="md"
+                                    className={cn(
+                                        'ring-2 ring-white/30',
+                                        isActive && 'ring-white/50'
+                                    )}
+                                />
+                                <div className={cn(
+                                    'absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-primary-700',
+                                    getStatusColor(status)
+                                )} />
+                            </div>
                             <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between">
-                                    <span className="font-medium text-surface-800 truncate text-sm">
-                                        {character.name}
-                                    </span>
-                                    <svg className="w-4 h-4 text-surface-300 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                    </svg>
+                                <div className={cn(
+                                    'font-semibold text-sm truncate',
+                                    isActive ? 'text-white' : 'text-white/90'
+                                )}>
+                                    {character.name}
+                                </div>
+                                <div className="text-xs text-white/60 truncate">
+                                    {status}, {personality}
                                 </div>
                             </div>
                         </div>
@@ -116,36 +144,17 @@ export function ContactsList() {
                 })}
             </div>
 
-            {/* Settings Link */}
-            <div className="border-t border-surface-200">
-                <div
-                    onClick={() => navigate('/settings')}
-                    className="contact-item mx-2 my-2"
+            {/* New Character Button */}
+            <div className="px-4 py-4 border-t border-white/10">
+                <button
+                    onClick={() => navigate('/characters/new')}
+                    className="w-full py-2.5 px-4 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-white font-medium text-sm transition-all duration-200 flex items-center justify-center gap-2"
                 >
-                    <div className="w-10 h-10 rounded-full bg-surface-200 flex items-center justify-center">
-                        <svg className="w-5 h-5 text-surface-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                    </div>
-                    <span className="font-medium text-surface-700 text-sm">Settings</span>
-                    {/* Notification badge */}
-                    <span className="w-5 h-5 rounded-full bg-accent-coral text-white text-xs flex items-center justify-center ml-auto">
-                        2
-                    </span>
-                </div>
-            </div>
-
-            {/* Current User/Persona */}
-            <div className="border-t border-surface-200 px-3 py-3">
-                <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
-                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                        </svg>
-                    </div>
-                    <span className="text-sm font-medium text-surface-700">Tarsh</span>
-                </div>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    New Character
+                </button>
             </div>
         </div>
     );

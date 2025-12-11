@@ -11,6 +11,9 @@ export interface GenerationSettings {
   contextSize: number;
   lorebookBudget?: number;
   responseReserve?: number;
+  summaryBudget?: number;
+  memoryBudget?: number;
+  exampleDialogueBudget?: number;
 }
 
 export interface AppSettings {

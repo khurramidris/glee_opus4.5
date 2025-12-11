@@ -1,0 +1,7 @@
+{
+  "projectId": "fc71987e-9c1d-40ce-8b89-e2822648f466",
+  "createdAt": 1765359385117,
+  "startupCommands": [
+    "cd D:\\Glee-Opus4.5\\glee\\apps\\desktop; pnpm install; pnpm run dev"
+  ]
+}

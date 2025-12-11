@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Tabs } from '@/components/ui/Tabs';
 import { GenerationSettings } from './GenerationSettings';
+import { MemorySettings } from './MemorySettings';
 import { ModelSettings } from './ModelSettings';
 import { AppearanceSettings } from './AppearanceSettings';
 import { DataSettings } from './DataSettings';
@@ -10,6 +11,7 @@ export function SettingsPanel() {
 
   const tabs = [
     { id: 'generation', label: 'Generation' },
+    { id: 'memory', label: 'Memory' },
     { id: 'model', label: 'Model' },
     { id: 'appearance', label: 'Appearance' },
     { id: 'data', label: 'Data' },
@@ -24,6 +26,7 @@ export function SettingsPanel() {
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-2xl mx-auto">
           {activeTab === 'generation' && <GenerationSettings />}
+          {activeTab === 'memory' && <MemorySettings />}
           {activeTab === 'model' && <ModelSettings />}
           {activeTab === 'appearance' && <AppearanceSettings />}
           {activeTab === 'data' && <DataSettings />}

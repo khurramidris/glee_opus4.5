@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { EventSubscriptionManager } from '@/lib/events';
 import type { ModelStatusEvent } from '@/types';
@@ -7,7 +7,7 @@ export function useModelStatus() {
   const { 
     modelStatus, 
     fetchModelStatus, 
-    startSidecar, 
+    startSidecar: storeStartSidecar, 
     stopSidecar, 
     isLoading 
   } = useSettingsStore();
@@ -34,10 +34,23 @@ export function useModelStatus() {
     
     setupListeners().catch(console.error);
     
+    // Poll model status periodically
+    const pollInterval = setInterval(() => {
+      fetchModelStatus();
+    }, 5000);
+    
     return () => {
       manager.unsubscribeAll();
+      clearInterval(pollInterval);
     };
   }, [fetchModelStatus]);
+  
+  // Wrap startSidecar to refresh status after starting
+  const startSidecar = useCallback(async () => {
+    await storeStartSidecar();
+    // Refresh status after successful start
+    await fetchModelStatus();
+  }, [storeStartSidecar, fetchModelStatus]);
   
   return {
     status: modelStatus?.status ?? 'not_found',

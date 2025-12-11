@@ -9,19 +9,25 @@ pub async fn send_message(
     state: State<'_, AppState>,
     input: SendMessageInput,
 ) -> Result<Message, AppError> {
+    tracing::info!("send_message called for conversation: {}", input.conversation_id);
+    
     // Check if model is loaded
     if !state.is_model_loaded() {
+        tracing::error!("send_message failed: Model not loaded");
         return Err(AppError::Sidecar("Model not loaded. Please load a model first.".to_string()));
     }
     
     // Check if already generating for this conversation
     if let Some(gen_state) = state.current_generation() {
         if gen_state.conversation_id == input.conversation_id {
+            tracing::warn!("send_message blocked: Already generating for this conversation");
             return Err(AppError::Validation("Already generating a response for this conversation".to_string()));
         }
     }
     
+    tracing::info!("Calling MessageService::send_user_message...");
     let (message, _task) = MessageService::send_user_message(&state, input)?;
+    tracing::info!("send_message succeeded: message_id={}, task enqueued", message.id);
     Ok(message)
 }
 

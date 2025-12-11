@@ -39,6 +39,9 @@ export const GENERATION_DEFAULTS = {
   contextSize: 8192,
   lorebookBudget: 500,
   responseReserve: 512,
+  summaryBudget: 400,
+  memoryBudget: 500,
+  exampleDialogueBudget: 500,
 } as const;
 
 export const DEBOUNCE_DELAYS = {

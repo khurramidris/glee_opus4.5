@@ -16,7 +16,7 @@ interface ChatState {
   streamingMessages: Record<string, StreamingMessage>;
   isGenerating: boolean;
   pendingSend: boolean;
-  _updateCounter: number; // Force re-renders
+  _updateCounter: number;
   
   loadConversation: (id: string) => Promise<void>;
   sendMessage: (content: string) => Promise<Message | null>;
@@ -30,6 +30,7 @@ interface ChatState {
   handleStreamError: (messageId: string | null, error: string) => void;
   setGenerating: (isGenerating: boolean) => void;
   clearChat: () => void;
+  clearMessages: (conversationId: string) => void;
   clearStaleStreams: () => void;
 }
 
@@ -103,7 +104,6 @@ export const useChatStore = create<ChatState>()(
         
         console.log('[ChatStore] Got message:', message.id);
         
-        // Use direct set() instead of immer mutation for reliable re-renders
         const currentState = get();
         set({
           messages: [...currentState.messages, message],
@@ -219,7 +219,6 @@ export const useChatStore = create<ChatState>()(
     appendStreamToken: (messageId, token) => {
       console.log('[ChatStore] appendStreamToken:', messageId, token.substring(0, 10));
       
-      // Use direct set() instead of immer mutation for reliable re-renders
       const currentState = get();
       const currentStreaming = currentState.streamingMessages[messageId];
       
@@ -239,13 +238,10 @@ export const useChatStore = create<ChatState>()(
     finalizeStreamMessage: (message) => {
       console.log('[ChatStore] finalizeStreamMessage:', message.id);
       
-      // Use direct set() instead of immer mutation for reliable re-renders
       const currentState = get();
       
-      // Remove from streaming
       const { [message.id]: _, ...newStreaming } = currentState.streamingMessages;
       
-      // Update or add message
       const index = currentState.messages.findIndex((m) => m.id === message.id);
       const newMessages = index !== -1
         ? [
@@ -298,6 +294,20 @@ export const useChatStore = create<ChatState>()(
         error: null,
         _updateCounter: 0,
       });
+    },
+
+    clearMessages: (conversationId) => {
+      console.log('[ChatStore] clearMessages for:', conversationId);
+      const { conversation } = get();
+      if (conversation && conversation.id === conversationId) {
+        set({
+          messages: [],
+          streamingMessages: {},
+          isGenerating: false,
+          pendingSend: false,
+          _updateCounter: get()._updateCounter + 1,
+        });
+      }
     },
 
     clearStaleStreams: () => {

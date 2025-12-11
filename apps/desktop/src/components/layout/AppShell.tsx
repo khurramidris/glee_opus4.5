@@ -5,6 +5,7 @@ import { ContactsList } from './ContactsList';
 import { Header } from './Header';
 import { StatusBar } from './StatusBar';
 import { TitleBar } from '../ui/TitleBar';
+import { cn } from '@/lib/utils';
 
 interface AppShellProps {
   children: ReactNode;
@@ -16,9 +17,9 @@ export function AppShell({ children }: AppShellProps) {
 
 
   return (
-    <div className="h-screen w-screen flex flex-col text-surface-800 overflow-hidden">
+    <div className="h-screen w-screen flex flex-col bg-app text-surface-800 overflow-hidden">
       <TitleBar />
-      <div className="flex-1 flex overflow-hidden relative">
+      <div className="flex-1 flex gap-1.5 p-1.5 pt-0 overflow-hidden relative">
         {/* Panel 1: Icon Sidebar (narrow) */}
         <div className="flex-shrink-0 h-full">
           <IconSidebar />
@@ -30,7 +31,10 @@ export function AppShell({ children }: AppShellProps) {
         </div>
 
         {/* Panel 3: Main Content Area */}
-        <div className="flex flex-col flex-1 min-w-0 h-full relative">
+        <div className={cn(
+          "flex flex-col flex-1 min-w-0 h-full relative overflow-hidden",
+          !isInChat && "bg-surface-50 rounded-2xl"
+        )}>
           {!isInChat && <Header />}
           <main className="flex-1 overflow-hidden relative">
             {children}

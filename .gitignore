@@ -82,3 +82,6 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# Vite port file for dynamic dev server
+.vite-port

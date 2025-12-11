@@ -5,6 +5,9 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Glee</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
       html, body, #root {
         height: 100%;
@@ -21,8 +24,8 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        background: linear-gradient(135deg, #09090b 0%, #18181b 50%, #09090b 100%);
-        font-family: system-ui, -apple-system, sans-serif;
+        background: #FEF9E6; /* Muted Yellow Theme */
+        font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
         transition: opacity 0.5s ease-out;
       }
       
@@ -34,7 +37,7 @@
       #initial-splash .logo {
         font-size: 4.5rem;
         font-weight: 700;
-        background: linear-gradient(90deg, #38bdf8 0%, #7dd3fc 50%, #0ea5e9 100%);
+        background: linear-gradient(90deg, #6D28D9 0%, #8B5CF6 50%, #6D28D9 100%); /* Boutique Purple */
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
@@ -42,7 +45,7 @@
       }
       
       #initial-splash .tagline {
-        color: #71717a;
+        color: #7D7866;
         font-size: 1rem;
         letter-spacing: 0.1em;
         text-transform: uppercase;
@@ -52,7 +55,7 @@
       #initial-splash .progress-container {
         width: 20rem;
         height: 0.5rem;
-        background: #27272a;
+        background: #E6DDBF;
         border-radius: 9999px;
         overflow: hidden;
       }
@@ -60,7 +63,7 @@
       #initial-splash .progress-bar {
         height: 100%;
         width: 30%;
-        background: linear-gradient(90deg, #0ea5e9 0%, #38bdf8 50%, #0ea5e9 100%);
+        background: linear-gradient(90deg, #6D28D9 0%, #8B5CF6 50%, #6D28D9 100%);
         border-radius: 9999px;
         animation: loading 1.5s ease-in-out infinite;
       }
@@ -71,7 +74,7 @@
       }
       
       #initial-splash .status {
-        color: #71717a;
+        color: #9C9682;
         font-size: 0.875rem;
         margin-top: 1.5rem;
         animation: pulse 1.5s ease-in-out infinite;
