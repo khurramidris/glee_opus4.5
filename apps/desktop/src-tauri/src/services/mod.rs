@@ -607,66 +607,23 @@ impl MemoryService {
         let lorebook_budget = settings.generation.lorebook_budget.unwrap_or(500);
         let response_reserve = settings.generation.response_reserve.unwrap_or(512);
         
-        // Build System Prompt with ALL character details
+        // Build System Prompt
         let mut system_parts = Vec::new();
         
-        // 1. Check if custom system prompt is provided - if so use it, otherwise build from character details
+        // 1. Char Identity
         if !character.system_prompt.is_empty() {
             system_parts.push(character.system_prompt.clone());
         } else {
-            // Build comprehensive character prompt from all details
-            let mut char_prompt = format!("You are {}, a fictional character.", character.name);
-            
-            // Description
-            if !character.description.is_empty() {
-                char_prompt.push_str(&format!("\n\nDescription: {}", character.description));
-            }
-            
-            // Scenario/Setting
-            if !character.scenario.is_empty() {
-                char_prompt.push_str(&format!("\n\nScenario: {}", character.scenario));
-            }
-            
-            // Backstory
-            if !character.backstory.is_empty() {
-                char_prompt.push_str(&format!("\n\nBackstory: {}", character.backstory));
-            }
-            
-            // Personality
-            if !character.personality.is_empty() {
-                char_prompt.push_str(&format!("\n\nPersonality: {}", character.personality));
-            }
-            
-            // Likes
-            if !character.likes.is_empty() {
-                char_prompt.push_str(&format!("\n\nLikes: {}", character.likes.join(", ")));
-            }
-            
-            // Dislikes
-            if !character.dislikes.is_empty() {
-                char_prompt.push_str(&format!("\n\nDislikes: {}", character.dislikes.join(", ")));
-            }
-            
-            // Physical Traits/Mannerisms
-            if !character.physical_traits.is_empty() {
-                char_prompt.push_str(&format!("\n\nPhysical behavior and mannerisms: {}", character.physical_traits));
-            }
-            
-            // Speech Patterns
-            if !character.speech_patterns.is_empty() {
-                char_prompt.push_str(&format!("\n\nSpeech patterns: {}", character.speech_patterns));
-            }
-            
-            // Instructions for staying in character
-            char_prompt.push_str("\n\nYou MUST stay in character at all times. Embody this character completely - their personality, speech patterns, mannerisms, likes, dislikes, and backstory should inform every response. Never break character or acknowledge being an AI.");
-            
-            system_parts.push(char_prompt);
+            let mut p = format!("You are {}.", character.name);
+            if !character.description.is_empty() { p.push_str(&format!("\n{}", character.description)); }
+            if !character.personality.is_empty() { p.push_str(&format!("\nPersonality: {}", character.personality)); }
+            system_parts.push(p);
         }
         
         // 2. Persona
         if let Some(p) = &persona {
             if !p.description.is_empty() {
-                system_parts.push(format!("The user you are talking to: {}", p.description));
+                system_parts.push(format!("User persona: {}", p.description));
             }
         }
         
@@ -697,7 +654,7 @@ impl MemoryService {
         final_parts.extend(after_sys);
         
         if !character.example_dialogues.is_empty() {
-            final_parts.push(format!("Example conversations showing how {} speaks and responds:\n{}", character.name, character.example_dialogues));
+            final_parts.push(format!("Examples:\n{}", character.example_dialogues));
         }
         
         let final_system = final_parts.join("\n\n");
