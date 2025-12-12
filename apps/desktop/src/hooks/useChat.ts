@@ -9,6 +9,7 @@ export function useChat(conversationId: string) {
   const addToast = useUIStore((s) => s.addToast);
   const subscriptionRef = useRef<EventSubscriptionManager | null>(null);
   const conversationIdRef = useRef(conversationId);
+  const isGeneratingRef = useRef(false);
   
   conversationIdRef.current = conversationId;
   
@@ -16,10 +17,19 @@ export function useChat(conversationId: string) {
   const finalizeStreamMessage = useChatStore((s) => s.finalizeStreamMessage);
   const handleStreamError = useChatStore((s) => s.handleStreamError);
   
+  // Track generation state for cleanup
+  useEffect(() => {
+    isGeneratingRef.current = store.isGenerating;
+  }, [store.isGenerating]);
+  
   useEffect(() => {
     store.loadConversation(conversationId);
     
     return () => {
+      // Cancel generation on unmount if still generating
+      if (isGeneratingRef.current) {
+        store.stopGeneration();
+      }
       store.clearChat();
     };
   }, [conversationId]);

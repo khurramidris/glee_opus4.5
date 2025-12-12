@@ -843,14 +843,82 @@ impl DownloadService {
 // Helpers
 // ============================================
 
+/// Improved token estimation using BPE-style heuristics.
+/// Based on analysis of GPT/LLaMA tokenization patterns.
+/// 
+/// Key observations:
+/// - English words: ~1.3 tokens/word (common words often merge)
+/// - Punctuation: usually 1 token each
+/// - Numbers: ~1 token per 1-3 digits
+/// - Unicode/CJK: ~1.5-2 tokens per character
+/// - Whitespace: often merges with following word
+/// - Code/special: higher token density
 pub fn estimate_tokens(text: &str) -> i32 {
-    if text.is_empty() { return 0; }
-    let mut ascii = 0;
-    let mut other = 0;
-    for c in text.chars() {
-        if c.is_ascii() { ascii += 1; } else { other += 1; }
+    if text.is_empty() {
+        return 0;
     }
-    // Heuristic: Ascii ~ 3.5 chars/token, Unicode ~ 1.5 chars/token
-    let est = (ascii as f32 / 3.5) + (other as f32 * 0.7);
-    (est.ceil() as i32).max(1)
+
+    let mut tokens = 0.0f32;
+    let chars: Vec<char> = text.chars().collect();
+    let mut i = 0;
+
+    while i < chars.len() {
+        let c = chars[i];
+        
+        if c.is_ascii_whitespace() {
+            // Whitespace usually merges with next token, count sparingly
+            tokens += 0.25;
+            i += 1;
+        } else if c.is_ascii_alphabetic() {
+            // Count word length for English text
+            let word_start = i;
+            while i < chars.len() && (chars[i].is_ascii_alphanumeric() || chars[i] == '\'') {
+                i += 1;
+            }
+            let word_len = i - word_start;
+            // Short words (1-4 chars): often 1 token
+            // Medium words (5-8 chars): often 1-2 tokens
+            // Long words (9+): usually 2+ tokens
+            tokens += match word_len {
+                1..=4 => 1.0,
+                5..=8 => 1.3,
+                9..=12 => 2.0,
+                _ => 2.5 + ((word_len - 12) as f32 * 0.3),
+            };
+        } else if c.is_ascii_digit() {
+            // Numbers: count digits
+            let num_start = i;
+            while i < chars.len() && (chars[i].is_ascii_digit() || chars[i] == '.' || chars[i] == ',') {
+                i += 1;
+            }
+            let num_len = i - num_start;
+            tokens += (num_len as f32 / 2.5).max(1.0);
+        } else if c.is_ascii_punctuation() {
+            // Most punctuation is 1 token, some common pairs merge
+            tokens += 1.0;
+            i += 1;
+        } else if !c.is_ascii() {
+            // Unicode characters (CJK, emoji, etc.)
+            // CJK: typically 1 token per character
+            // Emoji: 1-2 tokens
+            // Other unicode: varies
+            if c as u32 >= 0x4E00 && c as u32 <= 0x9FFF {
+                // CJK characters
+                tokens += 1.0;
+            } else if c as u32 >= 0x1F300 {
+                // Emoji range
+                tokens += 2.0;
+            } else {
+                // Other unicode (accented chars, etc.)
+                tokens += 1.5;
+            }
+            i += 1;
+        } else {
+            // Catch-all for other ASCII
+            tokens += 1.0;
+            i += 1;
+        }
+    }
+
+    (tokens.ceil() as i32).max(1)
 }

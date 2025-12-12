@@ -141,7 +141,6 @@ pub async fn start_sidecar(
         
         if let Some(found) = found_model {
             tracing::info!("Using model file: {:?}", found);
-            // Update settings with found model path
             let _ = SettingsService::set(&state.db, "model.path", &found.to_string_lossy());
             
             let handle = sidecar::start_sidecar(
@@ -149,6 +148,7 @@ pub async fn start_sidecar(
                 &found,
                 settings.model.gpu_layers,
                 settings.generation.context_size,
+                settings.model.sidecar_path.as_deref(),
             ).await?;
             
             state.set_sidecar(Some(handle));
@@ -169,6 +169,7 @@ pub async fn start_sidecar(
         &model_path,
         settings.model.gpu_layers,
         settings.generation.context_size,
+        settings.model.sidecar_path.as_deref(),
     ).await?;
     
     state.set_sidecar(Some(handle));

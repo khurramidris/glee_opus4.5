@@ -175,6 +175,7 @@ async fn process_queue(state: &AppState, app_handle: &AppHandle) {
         app_handle,
         &task.conversation_id,
         &message_id,
+        settings.generation.stop_sequences.clone(),
     ).await;
     
     // Finish generation state
@@ -245,6 +246,7 @@ async fn generate_response(
     app_handle: &AppHandle,
     conversation_id: &str,
     message_id: &str,
+    stop_sequences: Option<Vec<String>>,
 ) -> Result<String, GenerationError> {
     let mut stream = sidecar::generate_stream(
         sidecar,
@@ -252,6 +254,7 @@ async fn generate_response(
         temperature,
         max_tokens,
         cancel_token,
+        stop_sequences,
     ).await.map_err(|e| GenerationError::Error(e.to_string()))?;
     
     let mut full_content = String::new();

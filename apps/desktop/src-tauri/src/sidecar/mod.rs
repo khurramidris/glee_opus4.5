@@ -14,6 +14,7 @@ use std::os::windows::process::CommandExt;
 use crate::error::{AppError, AppResult};
 
 const DEFAULT_SIDECAR_PORT: u16 = 8384;
+const DEFAULT_STOP_SEQUENCES: &[&str] = &["<|im_end|>", "<|im_start|>", "</s>"];
 
 #[derive(Clone)]
 pub struct SidecarHandle {
@@ -49,7 +50,19 @@ fn find_available_port(preferred: u16) -> u16 {
         .unwrap_or(preferred)
 }
 
-fn find_sidecar_binary(app_handle: &AppHandle) -> AppResult<std::path::PathBuf> {
+fn find_sidecar_binary(app_handle: &AppHandle, custom_path: Option<&str>) -> AppResult<std::path::PathBuf> {
+    if let Some(custom) = custom_path {
+        if !custom.is_empty() {
+            let custom_path = std::path::PathBuf::from(custom);
+            if custom_path.exists() {
+                tracing::info!("Using custom sidecar path: {:?}", custom_path);
+                return Ok(custom_path);
+            } else {
+                tracing::warn!("Custom sidecar path not found: {:?}", custom_path);
+            }
+        }
+    }
+    
     let sidecar_name = if cfg!(target_os = "windows") {
         "llama-server.exe"
     } else {
@@ -85,7 +98,7 @@ fn find_sidecar_binary(app_handle: &AppHandle) -> AppResult<std::path::PathBuf> 
     }
     
     Err(AppError::Sidecar(format!(
-        "Sidecar binary '{}' not found. Please ensure it's in the resources directory.",
+        "Sidecar binary '{}' not found. Configure custom path in Settings or ensure it's in the resources directory.",
         sidecar_name
     )))
 }
@@ -95,6 +108,7 @@ pub async fn start_sidecar(
     model_path: &Path,
     gpu_layers: i32,
     context_size: i32,
+    sidecar_path: Option<&str>,
 ) -> AppResult<SidecarHandle> {
     if !model_path.exists() {
         return Err(AppError::NotFound(format!(
@@ -103,15 +117,15 @@ pub async fn start_sidecar(
         )));
     }
     
-    let sidecar_path = find_sidecar_binary(app_handle)?;
+    let sidecar_binary = find_sidecar_binary(app_handle, sidecar_path)?;
     let port = find_available_port(DEFAULT_SIDECAR_PORT);
     
-    tracing::info!("Starting sidecar from: {:?}", sidecar_path);
+    tracing::info!("Starting sidecar from: {:?}", sidecar_binary);
     tracing::info!("Model path: {:?}", model_path);
     tracing::info!("Port: {}", port);
     tracing::info!("GPU layers: {}, Context size: {}", gpu_layers, context_size);
     
-    let mut cmd = Command::new(&sidecar_path);
+    let mut cmd = Command::new(&sidecar_binary);
     cmd.arg("--model").arg(model_path)
         .arg("--host").arg("127.0.0.1")
         .arg("--port").arg(port.to_string())
@@ -119,11 +133,9 @@ pub async fn start_sidecar(
         .arg("--n-gpu-layers").arg(gpu_layers.to_string())
         .arg("--parallel").arg("1")
         .arg("--cont-batching")
-        // Performance optimizations
-        .arg("--flash-attn")           // Flash Attention: 30-40% faster, lower VRAM
-        .arg("-ctk").arg("q8_0")       // Quantize KV cache for speed + memory
-        .arg("--mlock")                // Lock model in RAM to prevent swapping
-        // Verbose logging for GPU debugging
+        .arg("--flash-attn")
+        .arg("-ctk").arg("q8_0")
+        .arg("--mlock")
         .arg("-v")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -217,7 +229,6 @@ pub async fn stop_sidecar(handle: SidecarHandle) -> AppResult<()> {
     if let Some(mut child) = proc_guard.take() {
         tracing::info!("Stopping sidecar process...");
         
-        // Try graceful shutdown first
         let client = reqwest::Client::new();
         let _ = client
             .post(format!("{}/quit", handle.base_url))
@@ -277,18 +288,17 @@ pub async fn generate_stream(
     temperature: f32,
     max_tokens: i32,
     cancel_token: CancellationToken,
+    custom_stop_sequences: Option<Vec<String>>,
 ) -> AppResult<mpsc::Receiver<GenerationEvent>> {
     let (tx, rx) = mpsc::channel(256);
     
     let url = format!("{}/v1/chat/completions", handle.base_url);
     let client = reqwest::Client::new();
     
-    // Stop sequences for ChatML format (what llama-server uses)
-    let stop_sequences = vec![
-        "<|im_end|>",
-        "<|im_start|>",
-        "</s>",
-    ];
+    let stop_sequences: Vec<&str> = match &custom_stop_sequences {
+        Some(custom) if !custom.is_empty() => custom.iter().map(|s| s.as_str()).collect(),
+        _ => DEFAULT_STOP_SEQUENCES.to_vec(),
+    };
     
     let body = serde_json::json!({
         "messages": messages,
@@ -314,7 +324,6 @@ pub async fn generate_stream(
         return Err(AppError::Llm(format!("LLM error ({}): {}", status, error_text)));
     }
     
-    // Spawn stream processor
     tokio::spawn(async move {
         let mut stream = response.bytes_stream();
         let mut buffer = String::new();
@@ -335,7 +344,6 @@ pub async fn generate_stream(
                         Some(Ok(bytes)) => {
                             buffer.push_str(&String::from_utf8_lossy(&bytes));
                             
-                            // Process SSE events
                             while let Some(pos) = buffer.find("\n\n") {
                                 let event_str = buffer[..pos].to_string();
                                 buffer = buffer[pos + 2..].to_string();
@@ -355,7 +363,6 @@ pub async fn generate_stream(
                                         }
                                         
                                         if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
-                                            // Check for content
                                             if let Some(content) = json
                                                 .get("choices")
                                                 .and_then(|c| c.get(0))
@@ -371,7 +378,6 @@ pub async fn generate_stream(
                                                 }
                                             }
                                             
-                                            // Check for finish
                                             if let Some(reason) = json
                                                 .get("choices")
                                                 .and_then(|c| c.get(0))

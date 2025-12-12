@@ -362,6 +362,8 @@ pub struct GenerationSettings {
     pub response_reserve: Option<i32>,
     #[serde(default)]
     pub example_dialogue_budget: Option<i32>,
+    #[serde(default)]
+    pub stop_sequences: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -376,6 +378,8 @@ pub struct AppSettings {
 pub struct ModelSettings {
     pub path: String,
     pub gpu_layers: i32,
+    #[serde(default)]
+    pub sidecar_path: Option<String>,
 }
 
 impl Default for Settings {
@@ -385,10 +389,11 @@ impl Default for Settings {
                 temperature: 0.8,
                 max_tokens: 512,
                 top_p: 0.9,
-                context_size: 4096,  // Match model training context (was 8192)
+                context_size: 4096,
                 lorebook_budget: Some(500),
                 response_reserve: Some(512),
                 example_dialogue_budget: Some(500),
+                stop_sequences: None,
             },
             app: AppSettings {
                 theme: "dark".to_string(),
@@ -397,6 +402,7 @@ impl Default for Settings {
             model: ModelSettings {
                 path: String::new(),
                 gpu_layers: 99,
+                sidecar_path: None,
             },
         }
     }
