@@ -14,6 +14,10 @@ use crate::error::AppError;
 const HEARTBEAT_INTERVAL_SECS: u64 = 5;
 /// Consider a download stale if no heartbeat for this many seconds
 const STALE_THRESHOLD_SECS: i64 = 30;
+/// Maximum retry attempts for transient failures
+const MAX_RETRY_ATTEMPTS: u32 = 3;
+/// Initial retry delay in seconds (doubles each attempt)
+const INITIAL_RETRY_DELAY_SECS: u64 = 5;
 
 pub async fn run(
     state: AppState,
@@ -132,7 +136,43 @@ async fn process_download(
         }
     });
     
-    let result = do_download(&state, &app_handle, &download, cancel_flag).await;
+    // Retry loop for transient failures
+    let mut attempt = 0;
+    let result = loop {
+        attempt += 1;
+        
+        match do_download(&state, &app_handle, &download, cancel_flag.clone()).await {
+            Ok(result) => break Ok(result),
+            Err(e) => {
+                // Check if this is a retryable error
+                let is_retryable = matches!(&e, 
+                    AppError::Download(msg) if is_transient_error(msg)
+                );
+                
+                if is_retryable && attempt < MAX_RETRY_ATTEMPTS && !cancel_flag.load(Ordering::SeqCst) {
+                    let delay = INITIAL_RETRY_DELAY_SECS * (1 << (attempt - 1)); // Exponential backoff
+                    tracing::warn!(
+                        "Download attempt {} failed with transient error: {}. Retrying in {}s...",
+                        attempt, e, delay
+                    );
+                    
+                    // Emit retry event
+                    let _ = app_handle.emit("download:retry", serde_json::json!({
+                        "id": id,
+                        "attempt": attempt,
+                        "max_attempts": MAX_RETRY_ATTEMPTS,
+                        "delay_secs": delay,
+                        "error": e.to_string(),
+                    }));
+                    
+                    tokio::time::sleep(std::time::Duration::from_secs(delay)).await;
+                    continue;
+                }
+                
+                break Err(e);
+            }
+        }
+    };
     
     // Stop heartbeat
     heartbeat_handle.abort();
@@ -207,6 +247,30 @@ async fn process_download(
             }));
         }
     }
+}
+
+/// Check if an error message indicates a transient/retryable failure
+fn is_transient_error(msg: &str) -> bool {
+    let transient_patterns = [
+        "connection reset",
+        "connection refused",
+        "connection closed",
+        "timed out",
+        "timeout",
+        "temporarily unavailable",
+        "503",
+        "502",
+        "504",
+        "429", // Rate limited
+        "stream error",
+        "broken pipe",
+        "network unreachable",
+        "dns error",
+        "name resolution",
+    ];
+    
+    let msg_lower = msg.to_lowercase();
+    transient_patterns.iter().any(|p| msg_lower.contains(p))
 }
 
 enum DownloadResult {
