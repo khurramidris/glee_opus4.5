@@ -33,6 +33,38 @@ pub struct Character {
     pub updated_at: i64,
     pub deleted_at: Option<i64>,
     pub metadata: serde_json::Value,
+    
+    // Enhanced character fields
+    #[serde(default)]
+    pub scenario: String,
+    #[serde(default)]
+    pub backstory: String,
+    #[serde(default)]
+    pub likes: Vec<String>,
+    #[serde(default)]
+    pub dislikes: Vec<String>,
+    #[serde(default)]
+    pub physical_traits: String,
+    #[serde(default)]
+    pub speech_patterns: String,
+    #[serde(default)]
+    pub alternate_greetings: Vec<String>,
+    
+    // Creator attribution
+    #[serde(default)]
+    pub creator_name: String,
+    #[serde(default)]
+    pub creator_notes: String,
+    #[serde(default)]
+    pub character_version: String,
+    
+    // Category tags
+    #[serde(default)]
+    pub pov_type: String,
+    #[serde(default)]
+    pub rating: String,
+    #[serde(default)]
+    pub genre_tags: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

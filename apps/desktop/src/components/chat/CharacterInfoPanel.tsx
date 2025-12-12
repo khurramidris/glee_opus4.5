@@ -27,14 +27,6 @@ export function CharacterInfoPanel({ character }: CharacterInfoPanelProps) {
         }
     };
 
-    const persona = character.personality?.split(',').slice(0, 3).map(s => s.trim()).join(', ') || 'Creative, Empathetic, Imaginative';
-    const specialties = character.tags?.slice(0, 3).join(', ') || 'Storytelling, Brainstorming, Emotional Support';
-    const abilities = [
-        character.speechPatterns ? 'Text Generation' : null,
-        'Image Analysis',
-        'Voice Interaction'
-    ].filter(Boolean).join(', ') || 'Text Generation, Image Analysis, Voice Interaction';
-
     return (
         <div className="w-72 flex flex-col bg-panel rounded-2xl h-full overflow-hidden">
             {/* Header */}
@@ -59,29 +51,77 @@ export function CharacterInfoPanel({ character }: CharacterInfoPanelProps) {
 
                 {/* Info Sections */}
                 <div className="px-5 space-y-3.5">
-                    {/* Persona */}
-                    <div className="text-sm">
-                        <span className="font-semibold text-white">Persona: </span>
-                        <span className="text-white/70">{persona}.</span>
-                    </div>
+                    {/* Description */}
+                    {character.description && (
+                        <div className="text-sm">
+                            <span className="font-semibold text-white">Description: </span>
+                            <span className="text-white/70">{character.description}</span>
+                        </div>
+                    )}
 
-                    {/* Specialties */}
-                    <div className="text-sm">
-                        <span className="font-semibold text-white">Specialties: </span>
-                        <span className="text-white/70">{specialties}.</span>
-                    </div>
+                    {/* Scenario */}
+                    {character.scenario && (
+                        <div className="text-sm">
+                            <span className="font-semibold text-white">Scenario: </span>
+                            <span className="text-white/70">{character.scenario}</span>
+                        </div>
+                    )}
 
-                    {/* Abilities */}
-                    <div className="text-sm">
-                        <span className="font-semibold text-white">Abilities: </span>
-                        <span className="text-white/70">{abilities}.</span>
-                    </div>
+                    {/* Backstory */}
+                    {character.backstory && (
+                        <div className="text-sm">
+                            <span className="font-semibold text-white">Backstory: </span>
+                            <span className="text-white/70">{character.backstory}</span>
+                        </div>
+                    )}
 
-                    {/* Voice Settings */}
-                    <div className="text-sm">
-                        <span className="font-semibold text-white">Voice Settings: </span>
-                        <span className="text-white/70">Soft, Expressive (English).</span>
-                    </div>
+                    {/* Personality */}
+                    {character.personality && (
+                        <div className="text-sm">
+                            <span className="font-semibold text-white">Personality: </span>
+                            <span className="text-white/70">{character.personality}</span>
+                        </div>
+                    )}
+
+                    {/* Likes */}
+                    {character.likes && character.likes.length > 0 && (
+                        <div className="text-sm">
+                            <span className="font-semibold text-white">Likes: </span>
+                            <span className="text-white/70">{character.likes.join(', ')}</span>
+                        </div>
+                    )}
+
+                    {/* Dislikes */}
+                    {character.dislikes && character.dislikes.length > 0 && (
+                        <div className="text-sm">
+                            <span className="font-semibold text-white">Dislikes: </span>
+                            <span className="text-white/70">{character.dislikes.join(', ')}</span>
+                        </div>
+                    )}
+
+                    {/* Physical Traits */}
+                    {character.physicalTraits && (
+                        <div className="text-sm">
+                            <span className="font-semibold text-white">Physical Traits: </span>
+                            <span className="text-white/70">{character.physicalTraits}</span>
+                        </div>
+                    )}
+
+                    {/* Speech Patterns */}
+                    {character.speechPatterns && (
+                        <div className="text-sm">
+                            <span className="font-semibold text-white">Speech Patterns: </span>
+                            <span className="text-white/70">{character.speechPatterns}</span>
+                        </div>
+                    )}
+
+                    {/* Tags */}
+                    {character.tags && character.tags.length > 0 && (
+                        <div className="text-sm">
+                            <span className="font-semibold text-white">Tags: </span>
+                            <span className="text-white/70">{character.tags.join(', ')}</span>
+                        </div>
+                    )}
                 </div>
             </div>
 

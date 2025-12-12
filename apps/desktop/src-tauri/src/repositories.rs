@@ -125,6 +125,10 @@ impl CharacterRepo {
     pub fn row_to_character(row: &rusqlite::Row<'_>) -> rusqlite::Result<Character> {
         let tags_str: String = row.get("tags")?;
         let metadata_str: String = row.get("metadata")?;
+        let likes_str: String = row.get("likes").unwrap_or_default();
+        let dislikes_str: String = row.get("dislikes").unwrap_or_default();
+        let alternate_greetings_str: String = row.get("alternate_greetings").unwrap_or_default();
+        let genre_tags_str: String = row.get("genre_tags").unwrap_or_default();
         
         Ok(Character {
             id: row.get("id")?,
@@ -141,6 +145,22 @@ impl CharacterRepo {
             updated_at: row.get("updated_at")?,
             deleted_at: row.get("deleted_at")?,
             metadata: serde_json::from_str(&metadata_str).unwrap_or_default(),
+            // Enhanced fields
+            scenario: row.get("scenario").unwrap_or_default(),
+            backstory: row.get("backstory").unwrap_or_default(),
+            likes: serde_json::from_str(&likes_str).unwrap_or_default(),
+            dislikes: serde_json::from_str(&dislikes_str).unwrap_or_default(),
+            physical_traits: row.get("physical_traits").unwrap_or_default(),
+            speech_patterns: row.get("speech_patterns").unwrap_or_default(),
+            alternate_greetings: serde_json::from_str(&alternate_greetings_str).unwrap_or_default(),
+            // Creator attribution
+            creator_name: row.get("creator_name").unwrap_or_default(),
+            creator_notes: row.get("creator_notes").unwrap_or_default(),
+            character_version: row.get("character_version").unwrap_or_default(),
+            // Category tags
+            pov_type: row.get("pov_type").unwrap_or_else(|_| "any".to_string()),
+            rating: row.get("rating").unwrap_or_else(|_| "sfw".to_string()),
+            genre_tags: serde_json::from_str(&genre_tags_str).unwrap_or_default(),
         })
     }
 }
