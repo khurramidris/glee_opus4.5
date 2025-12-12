@@ -252,6 +252,7 @@ async fn do_download(
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(3600)) // 1 hour total timeout
         .connect_timeout(std::time::Duration::from_secs(30))
+        .read_timeout(std::time::Duration::from_secs(60)) // 60 second read timeout to prevent hanging
         .build()
         .map_err(|e| AppError::Download(format!("Failed to create HTTP client: {}", e)))?;
     

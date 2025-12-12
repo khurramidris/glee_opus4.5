@@ -88,6 +88,7 @@ pub fn run() {
             crate::commands::character::update_character,
             crate::commands::character::delete_character,
             crate::commands::character::import_character_card,
+            crate::commands::character::generate_character_from_prompt,
             // Persona commands
             crate::commands::persona::create_persona,
             crate::commands::persona::get_persona,
