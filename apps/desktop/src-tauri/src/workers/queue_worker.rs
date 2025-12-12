@@ -8,6 +8,8 @@ use crate::services::{MemoryService, estimate_tokens};
 use crate::sidecar::{self, GenerationEvent};
 use crate::state::{AppState, QueueMessage};
 
+const GENERATION_TIMEOUT_SECS: u64 = 300; // 5 minutes
+
 pub async fn run(
     state: AppState,
     app_handle: AppHandle,
@@ -20,7 +22,6 @@ pub async fn run(
         tokio::select! {
             biased;
             
-            // Check shutdown signal
             _ = shutdown.notified() => {
                 tracing::info!("Queue worker received shutdown signal");
                 break;
@@ -38,8 +39,10 @@ pub async fn run(
                 }
             }
             
-            // Periodic check for pending tasks
             _ = tokio::time::sleep(std::time::Duration::from_secs(2)) => {
+                if state.check_generation_timeout(GENERATION_TIMEOUT_SECS) {
+                    tracing::warn!("Generation timed out after {} seconds", GENERATION_TIMEOUT_SECS);
+                }
                 process_queue(&state, &app_handle).await;
             }
         }
@@ -145,8 +148,19 @@ async fn process_queue(state: &AppState, app_handle: &AppHandle) {
     // Update conversation active message
     let _ = ConversationRepo::update_active_message(&state.db, &task.conversation_id, &message_id);
     
-    // Set generating state with cancellation token
-    let cancel_token = state.start_generation(message_id.clone(), task.conversation_id.clone());
+    // Atomically try to start generation - prevents race condition
+    let cancel_token = match state.try_start_generation(message_id.clone(), task.conversation_id.clone()) {
+        Some(token) => token,
+        None => {
+            tracing::warn!("Generation already in progress, skipping task {}", task.id);
+            let _ = MessageRepo::delete(&state.db, &message_id);
+            if let Some(parent_id) = &task.parent_message_id {
+                let _ = ConversationRepo::update_active_message(&state.db, &task.conversation_id, parent_id);
+            }
+            let _ = QueueRepo::update_status(&state.db, &task.id, QueueStatus::Pending, None);
+            return;
+        }
+    };
     
     // Build prompt for LLM
     let prompt_messages = build_llm_messages(&context, &character.name);

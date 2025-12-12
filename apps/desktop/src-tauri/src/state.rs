@@ -36,6 +36,7 @@ pub struct GenerationState {
     pub message_id: String,
     pub conversation_id: String,
     pub cancel_token: CancellationToken,
+    pub started_at: std::time::Instant,
 }
 
 impl AppState {
@@ -103,14 +104,30 @@ impl AppState {
         self.generating.read().is_some()
     }
     
-    pub fn start_generation(&self, message_id: String, conversation_id: String) -> CancellationToken {
+    /// Atomically try to start generation. Returns None if generation is already in progress.
+    /// This prevents race conditions where multiple tasks try to start generation simultaneously.
+    pub fn try_start_generation(&self, message_id: String, conversation_id: String) -> Option<CancellationToken> {
+        let mut guard = self.generating.write();
+        if guard.is_some() {
+            return None;
+        }
         let cancel_token = CancellationToken::new();
-        *self.generating.write() = Some(GenerationState {
+        *guard = Some(GenerationState {
             message_id,
             conversation_id,
             cancel_token: cancel_token.clone(),
+            started_at: std::time::Instant::now(),
         });
-        cancel_token
+        Some(cancel_token)
+    }
+    
+    /// Legacy method - prefer try_start_generation for race-safe operation
+    pub fn start_generation(&self, message_id: String, conversation_id: String) -> CancellationToken {
+        self.try_start_generation(message_id.clone(), conversation_id.clone())
+            .unwrap_or_else(|| {
+                tracing::warn!("start_generation called while generation already in progress");
+                self.generating.read().as_ref().unwrap().cancel_token.clone()
+            })
     }
     
     pub fn stop_generation(&self) {
@@ -146,6 +163,21 @@ impl AppState {
         if let Some(state) = guard.as_ref() {
             if state.conversation_id == conversation_id {
                 state.cancel_token.cancel();
+                return true;
+            }
+        }
+        false
+    }
+    
+    /// Check if current generation has exceeded the timeout and cancel if so.
+    /// Returns true if generation was timed out.
+    pub fn check_generation_timeout(&self, timeout_secs: u64) -> bool {
+        let guard = self.generating.read();
+        if let Some(state) = guard.as_ref() {
+            if state.started_at.elapsed().as_secs() > timeout_secs {
+                state.cancel_token.cancel();
+                drop(guard);
+                self.finish_generation();
                 return true;
             }
         }

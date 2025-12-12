@@ -1,18 +1,17 @@
 import { useParams, Link } from 'react-router-dom';
+import { useMemo, useCallback } from 'react';
 import { useChat } from '@/hooks/useChat';
 import { useModelStatus } from '@/hooks/useModelStatus';
 import { ChatHeader } from './ChatHeader';
 import { MessageList } from './MessageList';
 import { ChatInput } from './ChatInput';
 import { CharacterInfoPanel } from './CharacterInfoPanel';
+import { ChatErrorBoundary } from './ChatErrorBoundary';
 import { Spinner } from '@/components/ui/Spinner';
-import { useChatStore } from '@/stores/chatStore';
 
 export function ChatView() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const { isLoaded: isModelLoaded, status: modelStatus, startSidecar, isLoading: isModelLoading } = useModelStatus();
-
-  const updateCounter = useChatStore((s) => s._updateCounter);
 
   if (!conversationId) {
     return <div className="p-8 text-center text-surface-500">No conversation selected</div>;
@@ -36,6 +35,14 @@ export function ChatView() {
 
   const currentCharacter = conversation?.characters[0];
   const currentCharacterName = currentCharacter?.name || 'Character';
+
+  const handleRetryChat = useCallback(() => {
+    if (conversationId) {
+      window.location.reload();
+    }
+  }, [conversationId]);
+
+  const memoizedMessages = useMemo(() => messages, [messages]);
 
   if (isLoading && !conversation) {
     return <div className="h-full flex items-center justify-center"><Spinner size="lg" /></div>;
@@ -96,18 +103,19 @@ export function ChatView() {
         )}
 
         <div className="flex-1 overflow-hidden relative">
-          <MessageList
-            key={`messages-${messages.length}-${updateCounter}`}
-            messages={messages}
-            streamingMessages={streamingMessages}
-            streamingContent={streamingContent}
-            onRegenerate={regenerate}
-            onEdit={edit}
-            onSwitchBranch={switchBranch}
-            getBranchSiblings={getBranchSiblings}
-            characterName={currentCharacterName}
-            isGenerating={isGenerating}
-          />
+          <ChatErrorBoundary conversationId={conversationId} onRetry={handleRetryChat}>
+            <MessageList
+              messages={memoizedMessages}
+              streamingMessages={streamingMessages}
+              streamingContent={streamingContent}
+              onRegenerate={regenerate}
+              onEdit={edit}
+              onSwitchBranch={switchBranch}
+              getBranchSiblings={getBranchSiblings}
+              characterName={currentCharacterName}
+              isGenerating={isGenerating}
+            />
+          </ChatErrorBoundary>
         </div>
 
         <div className="pb-2">
