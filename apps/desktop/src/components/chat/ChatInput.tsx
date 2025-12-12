@@ -32,10 +32,8 @@ export function ChatInput({
 
   const handleSend = useCallback(async () => {
     const trimmedContent = content.trim();
-    console.log('[ChatInput] Attempting to send:', trimmedContent);
 
     if (!trimmedContent || disabled || isOverLimit || isSending) {
-      console.warn('[ChatInput] Send blocked:', { disabled, isOverLimit, isSending });
       return;
     }
 
@@ -48,8 +46,7 @@ export function ChatInput({
     }
 
     try {
-      const result = await onSend(trimmedContent);
-      console.log('[ChatInput] Sent successfully, result:', !!result);
+      await onSend(trimmedContent);
     } catch (e) {
       console.error('[ChatInput] Error sending:', e);
       setContent(savedContent);

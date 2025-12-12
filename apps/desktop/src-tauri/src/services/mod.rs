@@ -299,15 +299,11 @@ impl MessageService {
         let db = &state.db;
         let content = input.content.trim();
         if content.is_empty() { return Err(AppError::Validation("Empty message".to_string())); }
-        
-        // LOGGING ADDED HERE
-        tracing::info!("DEBUG: Attempting to send message. Conversation ID: '{}'", input.conversation_id);
 
         let conversation = match ConversationRepo::find_by_id(db, &input.conversation_id) {
             Ok(c) => c,
             Err(e) => {
-                // LOGGING ERROR
-                tracing::error!("DEBUG: FAILED to find conversation in DB. ID: '{}'. Error: {:?}", input.conversation_id, e);
+                tracing::error!("Failed to find conversation: {}. Error: {:?}", input.conversation_id, e);
                 return Err(e);
             }
         };
@@ -331,7 +327,6 @@ impl MessageService {
             sibling_count: None,
         };
         
-        tracing::info!("DEBUG: Creating user message with ID: {}", user_message.id);
         let saved_message = MessageRepo::create(db, &user_message)?;
         
         ConversationRepo::update_active_message(db, &input.conversation_id, &saved_message.id)?;
@@ -351,7 +346,6 @@ impl MessageService {
             metadata: serde_json::Value::Object(Default::default()),
         };
         
-        tracing::info!("DEBUG: Enqueuing task: {}", task.id);
         let saved_task = QueueRepo::enqueue(db, &task)?;
         let _ = state.queue_tx.try_send(crate::state::QueueMessage::Process);
         

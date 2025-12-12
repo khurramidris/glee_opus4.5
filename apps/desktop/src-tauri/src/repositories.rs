@@ -331,21 +331,17 @@ impl ConversationRepo {
 
     // Standard methods
     pub fn create(db: &Database, input: &CreateConversationInput) -> AppResult<Conversation> {
-        db.transaction(|conn| {
+        let conv_id = db.transaction(|conn| {
             let conv = Self::create_with_conn(conn, input)?;
             for (idx, char_id) in input.character_ids.iter().enumerate() {
                 Self::add_character_with_conn(conn, &conv.id, char_id, idx)?;
             }
-            Ok(conv)
+            Ok(conv.id)
         })?;
-        Self::find_by_id(db, &Self::find_all(db)?.first().unwrap().id)
+        Self::find_by_id(db, &conv_id)
     }
     
     pub fn find_by_id(db: &Database, id: &str) -> AppResult<Conversation> {
-        // Debug check to confirm ID exists in base table
-        println!("Repo: Looking for conversation: {}", id);
-        
-        // SIMPLIFIED QUERY - Avoids complex joins if they are failing
         let conversation_row = db.query_one(
             "SELECT 
                 c.*,

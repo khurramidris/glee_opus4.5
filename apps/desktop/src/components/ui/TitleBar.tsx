@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
 export function TitleBar() {
-    const [appWindow, setAppWindow] = useState<any>(null);
+    const [appWindow, setAppWindow] = useState<ReturnType<typeof getCurrentWindow> | null>(null);
     const [isMaximized, setIsMaximized] = useState(false);
 
     useEffect(() => {
@@ -13,8 +13,8 @@ export function TitleBar() {
             try {
                 const max = await win.isMaximized();
                 setIsMaximized(max);
-            } catch (e) {
-                console.error('Failed to check maximized state', e);
+            } catch {
+                // Ignore errors when checking maximized state
             }
         };
 
@@ -46,10 +46,8 @@ export function TitleBar() {
 
     return (
         <div className="h-8 bg-app-muted flex justify-end items-center select-none z-50 flex-shrink-0">
-            {/* Drag Region */}
             <div className="flex-1 h-full" data-tauri-drag-region />
 
-            {/* Window Controls */}
             <div className="flex h-full flex-shrink-0">
                 <button
                     onClick={minimize}

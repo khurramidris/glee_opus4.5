@@ -12,7 +12,6 @@ export function ChatView() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const { isLoaded: isModelLoaded, status: modelStatus, startSidecar, isLoading: isModelLoading } = useModelStatus();
 
-  // Subscribe to update counter to force re-renders
   const updateCounter = useChatStore((s) => s._updateCounter);
 
   if (!conversationId) {
@@ -34,9 +33,6 @@ export function ChatView() {
     stopGeneration,
     getBranchSiblings,
   } = useChat(conversationId);
-
-  // Debug
-  console.log('[ChatView] Render - messages:', messages.length, 'counter:', updateCounter, 'modelLoaded:', isModelLoaded);
 
   const currentCharacter = conversation?.characters[0];
   const currentCharacterName = currentCharacter?.name || 'Character';
@@ -64,11 +60,9 @@ export function ChatView() {
 
   return (
     <div className="flex h-full gap-1.5">
-      {/* Main Chat Area */}
       <div className="flex flex-col flex-1 min-w-0 h-full bg-surface-50 rounded-2xl overflow-hidden">
         {conversation && <ChatHeader conversation={conversation} />}
 
-        {/* Model not loaded warning */}
         {!isModelLoaded && (
           <div className="mx-4 mt-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -127,7 +121,6 @@ export function ChatView() {
         </div>
       </div>
 
-      {/* Panel 4: Character Info Panel */}
       {currentCharacter && (
         <CharacterInfoPanel character={currentCharacter} />
       )}

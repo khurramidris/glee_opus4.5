@@ -17,7 +17,7 @@ export function CharacterInfoPanel({ character }: CharacterInfoPanelProps) {
     };
 
     const handleViewHistory = () => {
-        console.log('View history clicked');
+        // TODO: Implement view history
     };
 
     const handleClearChat = async () => {
