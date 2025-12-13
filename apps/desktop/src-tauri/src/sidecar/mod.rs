@@ -74,9 +74,18 @@ fn find_sidecar_binary(app_handle: &AppHandle, custom_path: Option<&str>) -> App
         .resource_dir()
         .map_err(|e| AppError::Sidecar(format!("Failed to get resource dir: {}", e)))?;
     
+    // Check resources folder FIRST (contains GPU-enabled binary with CUDA DLLs)
+    // before falling back to exe directory (which may have CPU-only debug build)
     let possible_paths = vec![
+        // Project resources folder (GPU-enabled build with CUDA DLLs)
+        std::path::PathBuf::from("D:\\Glee-Opus4.5\\glee\\resources").join(sidecar_name),
+        std::path::PathBuf::from("resources").join(sidecar_name),
+        // Tauri resource paths
         resource_dir.join(sidecar_name),
         resource_dir.join("resources").join(sidecar_name),
+        // src-tauri resources
+        std::path::PathBuf::from("src-tauri/resources").join(sidecar_name),
+        // Fallback to exe directory (likely CPU-only debug build)
         std::env::current_exe()
             .ok()
             .and_then(|p| p.parent().map(|p| p.join(sidecar_name)))
@@ -85,8 +94,6 @@ fn find_sidecar_binary(app_handle: &AppHandle, custom_path: Option<&str>) -> App
             .ok()
             .and_then(|p| p.parent().map(|p| p.join("resources").join(sidecar_name)))
             .unwrap_or_default(),
-        std::path::PathBuf::from("src-tauri/resources").join(sidecar_name),
-        std::path::PathBuf::from("resources").join(sidecar_name),
         std::path::PathBuf::from(sidecar_name),
     ];
     
