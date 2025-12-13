@@ -126,6 +126,13 @@ pub async fn start_sidecar(
     tracing::info!("GPU layers: {}, Context size: {}", gpu_layers, context_size);
     
     let mut cmd = Command::new(&sidecar_binary);
+    
+    // Set working directory to sidecar's folder so DLLs (especially ggml-cuda.dll) are found
+    if let Some(parent_dir) = sidecar_binary.parent() {
+        tracing::info!("Setting working directory to: {:?}", parent_dir);
+        cmd.current_dir(parent_dir);
+    }
+    
     cmd.arg("--model").arg(model_path)
         .arg("--host").arg("127.0.0.1")
         .arg("--port").arg(port.to_string())
