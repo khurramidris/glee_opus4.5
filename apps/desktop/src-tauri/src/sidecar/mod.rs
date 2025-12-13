@@ -140,7 +140,7 @@ pub async fn start_sidecar(
         .arg("--n-gpu-layers").arg(gpu_layers.to_string())
         .arg("--parallel").arg("1")
         .arg("--cont-batching")
-        .arg("--flash-attn").arg("auto")
+        .arg("--flash-attn")
         .arg("-ctk").arg("q8_0")
         .arg("-v")
         .stdout(Stdio::piped())
