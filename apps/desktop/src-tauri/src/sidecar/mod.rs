@@ -142,7 +142,6 @@ pub async fn start_sidecar(
         .arg("--cont-batching")
         .arg("--flash-attn").arg("auto")
         .arg("-ctk").arg("q8_0")
-        .arg("--mlock")
         .arg("-v")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
