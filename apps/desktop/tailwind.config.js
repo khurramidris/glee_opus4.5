@@ -36,6 +36,7 @@ export default {
           coral: 'var(--color-accent-coral)',
           green: 'var(--color-accent-green)',
           blue: 'var(--color-accent-blue)',
+          cyan: 'var(--color-accent-cyan)',
         },
       },
       fontFamily: {
@@ -46,9 +47,10 @@ export default {
         '3xl': '1.5rem',
       },
       boxShadow: {
-        'soft': '0 2px 8px rgba(0, 0, 0, 0.05)',
-        'card': '0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04)',
-        'glow': '0 0 12px rgba(245, 158, 11, 0.3)',
+        'soft': '0 2px 8px rgba(0, 0, 0, 0.15)',
+        'card': '0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.08)',
+        'glow': '0 0 12px rgba(139, 92, 246, 0.3)',
+        'glow-cyan': '0 0 12px rgba(34, 211, 238, 0.3)',
       },
       animation: {
         'blink': 'blink 1s step-end infinite',

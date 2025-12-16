@@ -37,7 +37,9 @@ export function SplashScreen({ onComplete, status = 'Loading...', progress }: Sp
         <div
             className={`
         fixed inset-0 z-[9999] flex flex-col items-center justify-center
-        bg-gradient-to-br from-surface-50 via-surface-100 to-surface-50
+        /* Vibrant Neon Background matching main app */
+        bg-[radial-gradient(circle_at_0%_0%,_#4c1d95_0%,_#312e81_30%,_#1e1b4b_70%,_#0f172a_100%)]
+        text-white
         transition-opacity duration-500
         ${fadeOut ? 'opacity-0' : 'opacity-100'}
       `}
@@ -63,7 +65,7 @@ export function SplashScreen({ onComplete, status = 'Loading...', progress }: Sp
                 >
                     Glee
                 </h1>
-                <p className="text-surface-500 text-lg mt-2 tracking-widest uppercase">
+                <p className="text-white/60 text-lg mt-2 tracking-widest uppercase">
                     AI Character Chat
                 </p>
             </div>
@@ -98,7 +100,7 @@ export function SplashScreen({ onComplete, status = 'Loading...', progress }: Sp
             </div>
 
             {/* Status text */}
-            <p className="text-surface-500 text-sm animate-pulse">
+            <p className="text-white/60 text-sm animate-pulse">
                 {status}
             </p>
 

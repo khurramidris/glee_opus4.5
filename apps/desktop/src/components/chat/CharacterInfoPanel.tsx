@@ -28,7 +28,7 @@ export function CharacterInfoPanel({ character }: CharacterInfoPanelProps) {
     };
 
     return (
-        <div className="w-72 flex flex-col bg-panel rounded-2xl h-full overflow-hidden">
+        <div className="w-72 flex flex-col panel rounded-2xl h-full overflow-hidden">
             {/* Header */}
             <div className="px-5 py-4 border-b border-white/10">
                 <h2 className="text-base font-semibold text-white font-display">Character Details: {character.name}</h2>

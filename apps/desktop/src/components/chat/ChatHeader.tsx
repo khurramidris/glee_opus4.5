@@ -13,7 +13,7 @@ export function ChatHeader({ conversation }: ChatHeaderProps) {
   const characterName = conversation.characters?.[0]?.name || conversation.title || 'Character';
 
   return (
-    <header className="flex items-center justify-between px-6 py-4 border-b border-surface-200/50 bg-surface-50/80 backdrop-blur-sm relative z-10">
+    <header className="flex items-center justify-between px-6 py-4 bg-transparent relative z-10">
       <h1 className="text-lg font-semibold text-surface-800 font-display tracking-tight">
         Chat with {characterName}
       </h1>

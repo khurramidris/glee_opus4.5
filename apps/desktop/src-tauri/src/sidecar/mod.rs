@@ -12,9 +12,30 @@ use futures::StreamExt;
 use std::os::windows::process::CommandExt;
 
 use crate::error::{AppError, AppResult};
+use serde::Deserialize;
 
 const DEFAULT_SIDECAR_PORT: u16 = 8384;
-const DEFAULT_STOP_SEQUENCES: &[&str] = &["<|im_end|>", "<|im_start|>", "</s>"];
+const DEFAULT_STOP_SEQUENCES: &[&str] = &["<|im_end|>", "<|im_start|>", "</s>", "<|end|>", "<|eot_id|>"];
+
+// ============================================
+// Model Properties (from /props endpoint)
+// ============================================
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct ModelProps {
+    #[serde(default)]
+    pub default_generation_settings: Option<DefaultGenSettings>,
+    #[serde(default)]
+    pub total_slots: Option<i32>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct DefaultGenSettings {
+    #[serde(default)]
+    pub stop: Option<Vec<String>>,
+    #[serde(default)]
+    pub n_ctx: Option<i32>,
+}
 
 #[derive(Clone)]
 pub struct SidecarHandle {
@@ -22,6 +43,8 @@ pub struct SidecarHandle {
     pub base_url: String,
     process: Arc<Mutex<Option<Child>>>,
     cancel_token: CancellationToken,
+    /// Stop tokens detected from model metadata
+    pub detected_stop_tokens: Arc<Mutex<Option<Vec<String>>>>,
 }
 
 impl SidecarHandle {
@@ -36,6 +59,16 @@ impl SidecarHandle {
     pub fn reset_cancellation(&mut self) -> CancellationToken {
         self.cancel_token = CancellationToken::new();
         self.cancel_token.clone()
+    }
+    
+    /// Get the detected stop tokens (or None if not yet detected)
+    pub async fn get_stop_tokens(&self) -> Option<Vec<String>> {
+        self.detected_stop_tokens.lock().await.clone()
+    }
+    
+    /// Set detected stop tokens from model props
+    pub async fn set_stop_tokens(&self, tokens: Vec<String>) {
+        *self.detected_stop_tokens.lock().await = Some(tokens);
     }
 }
 
@@ -184,6 +217,7 @@ pub async fn start_sidecar(
         base_url: format!("http://127.0.0.1:{}", port),
         process: Arc::new(Mutex::new(Some(child))),
         cancel_token: CancellationToken::new(),
+        detected_stop_tokens: Arc::new(Mutex::new(None)),
     };
     
     let max_attempts = 300;
@@ -215,6 +249,24 @@ pub async fn start_sidecar(
         
         if health_check(&handle).await {
             tracing::info!("Sidecar is ready after {} seconds", attempt);
+            
+            // Detect stop tokens from model metadata
+            match get_model_props(&handle).await {
+                Ok(props) => {
+                    if let Some(settings) = props.default_generation_settings {
+                        if let Some(stops) = settings.stop {
+                            if !stops.is_empty() {
+                                tracing::info!("Detected model stop tokens: {:?}", stops);
+                                handle.set_stop_tokens(stops).await;
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to get model props (using defaults): {}", e);
+                }
+            }
+            
             return Ok(handle);
         }
         
@@ -280,6 +332,71 @@ pub async fn health_check(handle: &SidecarHandle) -> bool {
     }
 }
 
+/// Get model properties from llama.cpp /props endpoint
+/// Returns model metadata including default stop sequences
+pub async fn get_model_props(handle: &SidecarHandle) -> AppResult<ModelProps> {
+    let client = reqwest::Client::new();
+    let url = format!("{}/props", handle.base_url);
+    
+    let response = client
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+        .map_err(|e| AppError::Sidecar(format!("Failed to get model props: {}", e)))?;
+    
+    if !response.status().is_success() {
+        return Err(AppError::Sidecar(format!(
+            "Model props request failed with status: {}",
+            response.status()
+        )));
+    }
+    
+    let props: ModelProps = response
+        .json()
+        .await
+        .map_err(|e| AppError::Sidecar(format!("Failed to parse model props: {}", e)))?;
+    
+    Ok(props)
+}
+
+/// Generate text embeddings using the loaded model
+/// This uses llama.cpp's /embedding endpoint
+pub async fn generate_embedding(handle: &SidecarHandle, text: &str) -> AppResult<Vec<f32>> {
+    let client = reqwest::Client::new();
+    let url = format!("{}/embedding", handle.base_url);
+    
+    let body = serde_json::json!({
+        "content": text
+    });
+    
+    let response = client
+        .post(&url)
+        .json(&body)
+        .timeout(std::time::Duration::from_secs(60))
+        .send()
+        .await
+        .map_err(|e| AppError::Llm(format!("Embedding request failed: {}", e)))?;
+    
+    if !response.status().is_success() {
+        let status = response.status();
+        let error_text = response.text().await.unwrap_or_default();
+        return Err(AppError::Llm(format!("Embedding error ({}): {}", status, error_text)));
+    }
+    
+    #[derive(Deserialize)]
+    struct EmbeddingResponse {
+        embedding: Vec<f32>,
+    }
+    
+    let result: EmbeddingResponse = response
+        .json()
+        .await
+        .map_err(|e| AppError::Llm(format!("Failed to parse embedding response: {}", e)))?;
+    
+    Ok(result.embedding)
+}
+
 #[derive(Debug, Clone)]
 pub enum GenerationEvent {
     Token(String),
@@ -301,9 +418,11 @@ pub async fn generate_stream(
     let url = format!("{}/v1/chat/completions", handle.base_url);
     let client = reqwest::Client::new();
     
-    let stop_sequences: Vec<&str> = match &custom_stop_sequences {
-        Some(custom) if !custom.is_empty() => custom.iter().map(|s| s.as_str()).collect(),
-        _ => DEFAULT_STOP_SEQUENCES.to_vec(),
+    // Use custom stop sequences, or detected model tokens, or defaults
+    let detected = handle.get_stop_tokens().await;
+    let stop_sequences: Vec<String> = match &custom_stop_sequences {
+        Some(custom) if !custom.is_empty() => custom.clone(),
+        _ => detected.unwrap_or_else(|| DEFAULT_STOP_SEQUENCES.iter().map(|s| s.to_string()).collect()),
     };
     
     let body = serde_json::json!({
@@ -311,7 +430,7 @@ pub async fn generate_stream(
         "temperature": temperature,
         "max_tokens": max_tokens,
         "stream": true,
-        "stop": stop_sequences,
+        "stop": stop_sequences.iter().collect::<Vec<_>>(),
     });
     
     tracing::info!("Starting generation: {} messages, max_tokens={}", messages.len(), max_tokens);
@@ -332,9 +451,12 @@ pub async fn generate_stream(
     
     tokio::spawn(async move {
         let mut stream = response.bytes_stream();
-        let mut buffer = String::new();
+        let mut buffer = Vec::new();
         let mut token_count = 0u32;
+        let mut chunk_count = 0u32;
         
+        tracing::debug!("Started reading stream chunks");
+
         loop {
             tokio::select! {
                 biased;
@@ -348,11 +470,16 @@ pub async fn generate_stream(
                 chunk = stream.next() => {
                     match chunk {
                         Some(Ok(bytes)) => {
-                            buffer.push_str(&String::from_utf8_lossy(&bytes));
+                            chunk_count += 1;
+                            if chunk_count % 10 == 0 {
+                                tracing::debug!("Received chunk #{}, size: {} bytes", chunk_count, bytes.len());
+                            }
+                            buffer.extend_from_slice(&bytes);
                             
-                            while let Some(pos) = buffer.find("\n\n") {
-                                let event_str = buffer[..pos].to_string();
-                                buffer = buffer[pos + 2..].to_string();
+                            // Process buffer for SSE messages (double newline separated)
+                            while let Some(pos) = buffer.windows(2).position(|w| w == b"\n\n") {
+                                let event_bytes = buffer.drain(..pos + 2).collect::<Vec<u8>>();
+                                let event_str = String::from_utf8_lossy(&event_bytes[..event_bytes.len() - 2]); // Exclude last \n\n
                                 
                                 for line in event_str.lines() {
                                     if let Some(data) = line.strip_prefix("data: ") {
@@ -368,33 +495,39 @@ pub async fn generate_stream(
                                             continue;
                                         }
                                         
-                                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
-                                            if let Some(content) = json
-                                                .get("choices")
-                                                .and_then(|c| c.get(0))
-                                                .and_then(|c| c.get("delta"))
-                                                .and_then(|d| d.get("content"))
-                                                .and_then(|c| c.as_str())
-                                            {
-                                                if !content.is_empty() {
-                                                    token_count += 1;
-                                                    if tx.send(GenerationEvent::Token(content.to_string())).await.is_err() {
+                                        match serde_json::from_str::<serde_json::Value>(data) {
+                                            Ok(json) => {
+                                                if let Some(content) = json
+                                                    .get("choices")
+                                                    .and_then(|c| c.get(0))
+                                                    .and_then(|c| c.get("delta"))
+                                                    .and_then(|d| d.get("content"))
+                                                    .and_then(|c| c.as_str())
+                                                {
+                                                    if !content.is_empty() {
+                                                        token_count += 1;
+                                                        // if token_count % 10 == 0 { tracing::debug!("Generated {} tokens", token_count); }
+                                                        if tx.send(GenerationEvent::Token(content.to_string())).await.is_err() {
+                                                            return;
+                                                        }
+                                                    }
+                                                }
+                                                
+                                                if let Some(reason) = json
+                                                    .get("choices")
+                                                    .and_then(|c| c.get(0))
+                                                    .and_then(|c| c.get("finish_reason"))
+                                                    .and_then(|f| f.as_str())
+                                                {
+                                                    if reason == "stop" || reason == "length" {
+                                                        tracing::info!("Finished ({}): {} tokens", reason, token_count);
+                                                        let _ = tx.send(GenerationEvent::Done).await;
                                                         return;
                                                     }
                                                 }
                                             }
-                                            
-                                            if let Some(reason) = json
-                                                .get("choices")
-                                                .and_then(|c| c.get(0))
-                                                .and_then(|c| c.get("finish_reason"))
-                                                .and_then(|f| f.as_str())
-                                            {
-                                                if reason == "stop" || reason == "length" {
-                                                    tracing::info!("Finished ({}): {} tokens", reason, token_count);
-                                                    let _ = tx.send(GenerationEvent::Done).await;
-                                                    return;
-                                                }
+                                            Err(e) => {
+                                                tracing::warn!("Failed to parse JSON chunk: {}", e);
                                             }
                                         }
                                     }
@@ -418,6 +551,51 @@ pub async fn generate_stream(
     });
     
     Ok(rx)
+}
+
+pub async fn generate_text_oneshot(
+    handle: &SidecarHandle,
+    messages: Vec<serde_json::Value>,
+    temperature: f32,
+    max_tokens: i32,
+) -> AppResult<String> {
+    let url = format!("{}/v1/chat/completions", handle.base_url);
+    let client = reqwest::Client::new();
+    
+    let detected = handle.get_stop_tokens().await;
+    let stop_sequences: Vec<String> = detected.unwrap_or_else(|| DEFAULT_STOP_SEQUENCES.iter().map(|s| s.to_string()).collect());
+
+    let body = serde_json::json!({
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "stream": false,
+        "stop": stop_sequences
+    });
+
+    let response = client
+        .post(&url)
+        .json(&body)
+        .timeout(std::time::Duration::from_secs(60))
+        .send()
+        .await
+        .map_err(|e| AppError::Llm(format!("Request failed: {}", e)))?;
+
+    if !response.status().is_success() {
+        return Err(AppError::Llm(format!("LLM error: {}", response.status())));
+    }
+
+    let json: serde_json::Value = response.json().await.map_err(|e| AppError::Llm(e.to_string()))?;
+    
+    let content = json
+        .get("choices")
+        .and_then(|c| c.get(0))
+        .and_then(|c| c.get("message"))
+        .and_then(|m| m.get("content"))
+        .and_then(|c| c.as_str())
+        .ok_or_else(|| AppError::Llm("Failed to parse response content".to_string()))?;
+
+    Ok(content.to_string())
 }
 
 pub async fn get_model_info(handle: &SidecarHandle) -> AppResult<serde_json::Value> {

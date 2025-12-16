@@ -67,65 +67,68 @@ export function ChatView() {
 
   return (
     <div className="flex h-full gap-1.5">
-      <div className="flex flex-col flex-1 min-w-0 h-full bg-surface-50 rounded-2xl overflow-hidden">
-        {conversation && <ChatHeader conversation={conversation} />}
+      <div className="flex flex-col flex-1 min-w-0 h-full panel rounded-2xl overflow-hidden shadow-2xl relative">
+        <div className="absolute inset-0 bg-transparent z-0" /> {/* Overlay for any extra effects */}
+        <div className="relative z-10 flex flex-col h-full">
+          {conversation && <ChatHeader conversation={conversation} />}
 
-        {!isModelLoaded && (
-          <div className="mx-4 mt-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              <span className="text-sm text-amber-800">
-                {modelStatus === 'not_found' 
-                  ? 'No AI model found. Please download or configure a model in Settings.'
-                  : 'AI model not loaded. Click "Start Model" to begin chatting.'}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              {modelStatus !== 'not_found' && (
-                <button
-                  onClick={handleStartModel}
-                  disabled={isModelLoading}
-                  className="px-3 py-1.5 text-sm bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50"
+          {!isModelLoaded && (
+            <div className="mx-4 mt-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span className="text-sm text-amber-800">
+                  {modelStatus === 'not_found'
+                    ? 'No AI model found. Please download or configure a model in Settings.'
+                    : 'AI model not loaded. Click "Start Model" to begin chatting.'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                {modelStatus !== 'not_found' && (
+                  <button
+                    onClick={handleStartModel}
+                    disabled={isModelLoading}
+                    className="px-3 py-1.5 text-sm bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50"
+                  >
+                    {isModelLoading ? 'Starting...' : 'Start Model'}
+                  </button>
+                )}
+                <Link
+                  to="/settings"
+                  className="px-3 py-1.5 text-sm bg-surface-200 text-surface-700 rounded-lg hover:bg-surface-300"
                 >
-                  {isModelLoading ? 'Starting...' : 'Start Model'}
-                </button>
-              )}
-              <Link
-                to="/settings"
-                className="px-3 py-1.5 text-sm bg-surface-200 text-surface-700 rounded-lg hover:bg-surface-300"
-              >
-                Settings
-              </Link>
+                  Settings
+                </Link>
+              </div>
             </div>
+          )}
+
+          <div className="flex-1 overflow-hidden relative">
+            <ChatErrorBoundary conversationId={conversationId} onRetry={handleRetryChat}>
+              <MessageList
+                messages={memoizedMessages}
+                streamingMessages={streamingMessages}
+                streamingContent={streamingContent}
+                onRegenerate={regenerate}
+                onEdit={edit}
+                onSwitchBranch={switchBranch}
+                getBranchSiblings={getBranchSiblings}
+                characterName={currentCharacterName}
+                isGenerating={isGenerating}
+              />
+            </ChatErrorBoundary>
           </div>
-        )}
 
-        <div className="flex-1 overflow-hidden relative">
-          <ChatErrorBoundary conversationId={conversationId} onRetry={handleRetryChat}>
-            <MessageList
-              messages={memoizedMessages}
-              streamingMessages={streamingMessages}
-              streamingContent={streamingContent}
-              onRegenerate={regenerate}
-              onEdit={edit}
-              onSwitchBranch={switchBranch}
-              getBranchSiblings={getBranchSiblings}
-              characterName={currentCharacterName}
+          <div className="pb-2">
+            <ChatInput
+              onSend={sendMessage}
+              onStop={stopGeneration}
+              disabled={!isModelLoaded}
               isGenerating={isGenerating}
+              placeholder={isModelLoaded ? `Message ${currentCharacterName}...` : 'Model not loaded - configure in Settings'}
             />
-          </ChatErrorBoundary>
-        </div>
-
-        <div className="pb-2">
-          <ChatInput
-            onSend={sendMessage}
-            onStop={stopGeneration}
-            disabled={!isModelLoaded}
-            isGenerating={isGenerating}
-            placeholder={isModelLoaded ? `Message ${currentCharacterName}...` : 'Model not loaded - configure in Settings'}
-          />
+          </div>
         </div>
       </div>
 

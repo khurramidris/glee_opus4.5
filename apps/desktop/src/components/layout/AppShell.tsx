@@ -17,9 +17,9 @@ export function AppShell({ children }: AppShellProps) {
 
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-app text-surface-800 overflow-hidden">
+    <div className="h-screen w-screen flex flex-col bg-transparent text-surface-800 overflow-hidden">
       <TitleBar />
-      <div className="flex-1 flex gap-1.5 p-1.5 pt-0 overflow-hidden relative">
+      <div className="flex-1 flex gap-0 p-0 pt-0 overflow-hidden relative">
         {/* Panel 1: Icon Sidebar (narrow) */}
         <div className="flex-shrink-0 h-full">
           <IconSidebar />
@@ -32,7 +32,7 @@ export function AppShell({ children }: AppShellProps) {
 
         {/* Panel 3: Main Content Area */}
         <div className={cn(
-          "flex flex-col flex-1 min-w-0 h-full relative overflow-hidden",
+          "flex flex-col flex-1 min-w-0 h-full relative overflow-hidden ml-2",
           !isInChat && "bg-surface-50 rounded-2xl"
         )}>
           {!isInChat && <Header />}

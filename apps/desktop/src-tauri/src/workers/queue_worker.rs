@@ -4,7 +4,7 @@ use tauri::{AppHandle, Emitter};
 
 use crate::entities::*;
 use crate::repositories::*;
-use crate::services::{MemoryService, estimate_tokens};
+use crate::services::{MemoryService, LongTermMemoryService, estimate_tokens};
 use crate::sidecar::{self, GenerationEvent};
 use crate::state::{AppState, QueueMessage};
 
@@ -195,8 +195,36 @@ async fn process_queue(state: &AppState, app_handle: &AppHandle) {
             // Get final message for event
             if let Ok(final_message) = MessageRepo::find_by_id(&state.db, &message_id) {
                 let _ = app_handle.emit("chat:complete", ChatCompleteEvent {
-                    conversation_id: task.conversation_id,
+                    conversation_id: task.conversation_id.clone(),
                     message: final_message,
+                });
+            }
+            
+            // Extract memories from USER message (parent)
+            if let Some(parent_id) = &task.parent_message_id {
+                let db_clone = state.db.clone();
+                let sidecar_clone = sidecar.clone();
+                let parent_id_clone = parent_id.clone();
+                let character_id_clone = character.id.clone();
+                let conversation_id_clone = task.conversation_id.clone();
+                
+                tokio::spawn(async move {
+                    // Fetch user message content
+                    if let Ok(user_msg) = MessageRepo::find_by_id(&db_clone, &parent_id_clone) {
+                         if user_msg.author_type == AuthorType::User {
+                             tracing::info!("Starting memory extraction for message {}", user_msg.id);
+                             if let Err(e) = LongTermMemoryService::process_message(
+                                 &db_clone,
+                                 &sidecar_clone,
+                                 &user_msg.content,
+                                 &character_id_clone,
+                                 &conversation_id_clone,
+                                 &user_msg.id
+                             ).await {
+                                 tracing::warn!("Memory extraction failed: {}", e);
+                             }
+                         }
+                    }
                 });
             }
             

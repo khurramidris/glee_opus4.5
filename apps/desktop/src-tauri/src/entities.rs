@@ -359,6 +359,10 @@ pub struct GenerationSettings {
     #[serde(default)]
     pub lorebook_budget: Option<i32>,
     #[serde(default)]
+    pub memory_budget: Option<i32>,
+    #[serde(default)]
+    pub summary_budget: Option<i32>,
+    #[serde(default)]
     pub response_reserve: Option<i32>,
     #[serde(default)]
     pub example_dialogue_budget: Option<i32>,
@@ -391,6 +395,8 @@ impl Default for Settings {
                 top_p: 0.9,
                 context_size: 4096,
                 lorebook_budget: Some(500),
+                memory_budget: Some(400),
+                summary_budget: Some(300),
                 response_reserve: Some(512),
                 example_dialogue_budget: Some(500),
                 stop_sequences: None,

@@ -2,6 +2,8 @@ use crate::database::Database;
 use crate::error::AppResult;
 
 const MIGRATION_001: &str = include_str!("../../migrations/001_initial_schema.sql");
+const MIGRATION_005: &str = include_str!("../../migrations/005_embeddings.sql");
+const MIGRATION_006: &str = include_str!("../../migrations/006_fix_schema.sql");
 
 pub fn run_migrations(db: &Database) -> AppResult<()> {
     // Check if migrations table exists
@@ -34,6 +36,26 @@ pub fn run_migrations(db: &Database) -> AppResult<()> {
         db.execute_batch(MIGRATION_001)?;
         db.execute(
             "INSERT INTO _migrations (id, name, applied_at) VALUES (1, '001_initial_schema', strftime('%s', 'now'))",
+            [],
+        )?;
+    }
+    
+    // Apply migration 5 if not applied (embeddings and summaries)
+    if !applied.contains(&5) {
+        tracing::info!("Applying migration 005_embeddings");
+        db.execute_batch(MIGRATION_005)?;
+        db.execute(
+            "INSERT INTO _migrations (id, name, applied_at) VALUES (5, '005_embeddings', strftime('%s', 'now'))",
+            [],
+        )?;
+    }
+    
+    // Apply migration 6 (Schema fixes)
+    if !applied.contains(&6) {
+        tracing::info!("Applying migration 006_fix_schema");
+        db.execute_batch(MIGRATION_006)?;
+        db.execute(
+            "INSERT INTO _migrations (id, name, applied_at) VALUES (6, '006_fix_schema', strftime('%s', 'now'))",
             [],
         )?;
     }

@@ -1,115 +1,136 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Glee</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-      html, body, #root {
-        height: 100%;
-        margin: 0;
-        padding: 0;
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Glee</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet">
+  <style>
+    html,
+    body,
+    #root {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* Initial splash screen - shows before React loads */
+    #initial-splash {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      /* Vibrant Neon Background matching main app */
+      background: radial-gradient(circle at 0% 0%, #4c1d95 0%, #312e81 30%, #1e1b4b 70%, #0f172a 100%);
+      font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+      transition: opacity 0.5s ease-out;
+    }
+
+    #initial-splash.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #initial-splash .logo {
+      font-size: 4.5rem;
+      font-weight: 700;
+      background: linear-gradient(90deg, #a78bfa 0%, #c4b5fd 50%, #a78bfa 100%);
+      /* Lighter Purple for dark bg */
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 0.5rem;
+    }
+
+    #initial-splash .tagline {
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 1rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 3rem;
+    }
+
+    #initial-splash .progress-container {
+      width: 20rem;
+      height: 0.5rem;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 9999px;
+      overflow: hidden;
+    }
+
+    #initial-splash .progress-bar {
+      height: 100%;
+      width: 30%;
+      background: linear-gradient(90deg, #8B5CF6 0%, #c4b5fd 50%, #8B5CF6 100%);
+      border-radius: 9999px;
+      animation: loading 1.5s ease-in-out infinite;
+    }
+
+    @keyframes loading {
+      0% {
+        transform: translateX(-100%);
       }
-      
-      /* Initial splash screen - shows before React loads */
-      #initial-splash {
-        position: fixed;
-        inset: 0;
-        z-index: 9999;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        background: #FEF9E6; /* Muted Yellow Theme */
-        font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
-        transition: opacity 0.5s ease-out;
+
+      100% {
+        transform: translateX(400%);
       }
-      
-      #initial-splash.hidden {
-        opacity: 0;
-        pointer-events: none;
+    }
+
+    #initial-splash .status {
+      color: rgba(255, 255, 255, 0.5);
+      font-size: 0.875rem;
+      margin-top: 1.5rem;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
       }
-      
-      #initial-splash .logo {
-        font-size: 4.5rem;
-        font-weight: 700;
-        background: linear-gradient(90deg, #6D28D9 0%, #8B5CF6 50%, #6D28D9 100%); /* Boutique Purple */
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        margin-bottom: 0.5rem;
+
+      50% {
+        opacity: 0.5;
       }
-      
-      #initial-splash .tagline {
-        color: #7D7866;
-        font-size: 1rem;
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
-        margin-bottom: 3rem;
-      }
-      
-      #initial-splash .progress-container {
-        width: 20rem;
-        height: 0.5rem;
-        background: #E6DDBF;
-        border-radius: 9999px;
-        overflow: hidden;
-      }
-      
-      #initial-splash .progress-bar {
-        height: 100%;
-        width: 30%;
-        background: linear-gradient(90deg, #6D28D9 0%, #8B5CF6 50%, #6D28D9 100%);
-        border-radius: 9999px;
-        animation: loading 1.5s ease-in-out infinite;
-      }
-      
-      @keyframes loading {
-        0% { transform: translateX(-100%); }
-        100% { transform: translateX(400%); }
-      }
-      
-      #initial-splash .status {
-        color: #9C9682;
-        font-size: 0.875rem;
-        margin-top: 1.5rem;
-        animation: pulse 1.5s ease-in-out infinite;
-      }
-      
-      @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.5; }
-      }
-    </style>
-  </head>
-  <body>
-    <!-- Initial splash screen - visible immediately, hidden when React takes over -->
-    <div id="initial-splash">
-      <div class="logo">Glee</div>
-      <div class="tagline">AI Character Chat</div>
-      <div class="progress-container">
-        <div class="progress-bar"></div>
-      </div>
-      <div class="status">Loading...</div>
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Initial splash screen - visible immediately, hidden when React takes over -->
+  <div id="initial-splash">
+    <div class="logo">Glee</div>
+    <div class="tagline">AI Character Chat</div>
+    <div class="progress-container">
+      <div class="progress-bar"></div>
     </div>
-    
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-    <script>
-      // Hide initial splash when React is ready
-      window.addEventListener('DOMContentLoaded', () => {
-        setTimeout(() => {
-          const splash = document.getElementById('initial-splash');
-          if (splash) {
-            splash.classList.add('hidden');
-            setTimeout(() => splash.remove(), 500);
-          }
-        }, 100);
-      });
-    </script>
-  </body>
+    <div class="status">Loading...</div>
+  </div>
+
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+  <script>
+    // Hide initial splash when React is ready
+    window.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => {
+        const splash = document.getElementById('initial-splash');
+        if (splash) {
+          splash.classList.add('hidden');
+          setTimeout(() => splash.remove(), 500);
+        }
+      }, 100);
+    });
+  </script>
+</body>
+
 </html>

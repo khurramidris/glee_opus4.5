@@ -47,7 +47,7 @@ export function MessageList({
   return (
     <div
       ref={containerRef}
-      className="h-full overflow-y-auto px-6 py-4 space-y-2 bg-surface-100"
+      className="h-full overflow-y-auto px-6 py-4 space-y-2 bg-transparent"
     >
       <div className="flex justify-center py-4">
         <span className="text-xs text-surface-400 bg-surface-200 px-3 py-1 rounded-full">
@@ -79,7 +79,7 @@ export function MessageList({
 
       {showTypingIndicator && (
         <div className="py-2">
-          <TypingIndicator characterName={characterName} onStop={() => {}} />
+          <TypingIndicator characterName={characterName} onStop={() => { }} />
         </div>
       )}
 

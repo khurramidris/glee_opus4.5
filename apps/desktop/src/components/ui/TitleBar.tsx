@@ -45,7 +45,7 @@ export function TitleBar() {
     const close = () => appWindow?.close();
 
     return (
-        <div className="h-8 bg-app-muted flex justify-end items-center select-none z-50 flex-shrink-0">
+        <div className="h-8 bg-transparent flex justify-end items-center select-none z-50 flex-shrink-0">
             <div className="flex-1 h-full" data-tauri-drag-region />
 
             <div className="flex h-full flex-shrink-0">

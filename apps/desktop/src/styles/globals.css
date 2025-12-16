@@ -4,56 +4,57 @@
 
 @layer base {
   :root {
-    /* Color Scheme: Purple Background with Golden Yellow Panels */
-    
-    /* Main Background: #55185D (Purple) */
-    --color-background: #55185D;
-    --color-background-muted: #47144D;
-    
-    /* Surface Colors: Panels are #ECB602 (Golden Yellow) */
-    --color-surface-50: #FFFFFF;
-    --color-surface-100: #ECB602; /* Panel color */
-    --color-surface-200: #D4A302;
-    --color-surface-300: #BC9002;
-    --color-surface-400: #A47D01;
-    --color-surface-500: #8C6A01;
-    --color-surface-600: #745701;
-    --color-surface-700: #5C4401;
-    --color-surface-750: #443101;
-    --color-surface-800: #000000; /* Black text */
-    --color-surface-900: #000000;
-    --color-surface-950: #000000;
+    /* Color Scheme: Purple-Blue Neon/Cyberpunk */
 
-    /* Primary Palette: Golden Yellow for accents */
-    --color-primary-50: #FFFBEB;
-    --color-primary-100: #FEF3C7;
-    --color-primary-200: #FDE68A;
-    --color-primary-300: #FCD34D;
-    --color-primary-400: #FBBF24;
-    --color-primary-500: #ECB602;
-    --color-primary-600: #D4A302;
-    --color-primary-700: #BC9002;
-    --color-primary-800: #A47D01;
-    --color-primary-900: #8C6A01;
-    --color-primary-950: #745701;
+    /* Main Background: Deep purple-blue */
+    --color-background: #0f0f2d;
+    --color-background-muted: #1a1a4e;
 
-    /* Panel Background: #ECB602 (Golden Yellow) */
-    --color-panel: #ECB602;
-    --color-panel-light: #F4C420;
-    --color-panel-dark: #D4A302;
+    /* Surface Colors: For dark theme with light text */
+    --color-surface-50: #1e2d5a;
+    --color-surface-100: #253366;
+    --color-surface-200: #2d3d75;
+    --color-surface-300: #3a4a85;
+    --color-surface-400: #4a5a95;
+    --color-surface-500: #64748b;
+    --color-surface-600: #94a3b8;
+    --color-surface-700: #cbd5e1;
+    --color-surface-750: #e2e8f0;
+    --color-surface-800: #f1f5f9;
+    --color-surface-900: #f8fafc;
+    --color-surface-950: #ffffff;
+
+    /* Primary Palette: Purple-Violet */
+    --color-primary-50: #f5f3ff;
+    --color-primary-100: #ede9fe;
+    --color-primary-200: #ddd6fe;
+    --color-primary-300: #c4b5fd;
+    --color-primary-400: #a78bfa;
+    --color-primary-500: #8b5cf6;
+    --color-primary-600: #7c3aed;
+    --color-primary-700: #6d28d9;
+    --color-primary-800: #5b21b6;
+    --color-primary-900: #4c1d95;
+    --color-primary-950: #2e1065;
+
+    /* Panel Background: Translucent dark blue-purple */
+    /* Much lower opacity for real glass effect */
+    --color-panel: rgba(15, 23, 42, 0.3);
+    --color-panel-light: rgba(30, 41, 59, 0.4);
+    --color-panel-dark: rgba(15, 23, 42, 0.5);
 
     /* Accent colors */
-    --color-accent-coral: #E88B72;
-    --color-accent-green: #7AB893;
-    --color-accent-blue: #A8CCE8;
-    --color-accent-amber: #ECB602;
+    --color-accent-coral: #f472b6;
+    --color-accent-green: #34d399;
+    --color-accent-blue: rgba(99, 180, 237, 0.25);
+    --color-accent-cyan: #22d3ee;
   }
 
   /* Dark Theme Overrides */
   .theme-dark {
     --color-background: #2A251E;
     --color-background-muted: #1A1612;
-    
+
     --color-surface-50: #1A1612;
     --color-surface-100: #2A251E;
     --color-surface-200: #3D372C;
@@ -66,7 +67,7 @@
     --color-surface-800: #F5E6C8;
     --color-surface-900: #FFF9E8;
     --color-surface-950: #FFFEF9;
-    
+
     --color-panel: #3D372C;
     --color-panel-light: #4A4336;
     --color-panel-dark: #2A251E;
@@ -74,13 +75,22 @@
 
   body {
     @apply font-sans antialiased;
-    background-color: var(--color-background);
-    color: #000000;
+    @apply font-sans antialiased;
+    /* Vibrant Neon Background from Reference */
+    background: radial-gradient(circle at 0% 0%, #4c1d95 0%, #312e81 30%, #1e1b4b 70%, #0f172a 100%);
+    background-attachment: fixed;
+    height: 100vh;
+    color: #ffffff;
     overflow: hidden;
     font-family: 'Inter', sans-serif;
   }
-  
-  h1, h2, h3, h4, h5, h6 {
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-family: 'Space Grotesk', sans-serif;
   }
 
@@ -122,42 +132,61 @@
     --tw-ring-offset-color: var(--color-surface-50);
   }
 
-  /* Panel styles - Cream themed */
+  /* Panel styles - Premium Glass Effect */
   .panel {
-    background-color: var(--color-panel);
-    border-right: 1px solid rgba(245, 200, 66, 0.3);
+    @apply backdrop-blur-2xl;
+    /* Gradient overlay for sheen + transparency */
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);
+    background-color: rgba(15, 23, 42, 0.3);
+
+    /* Neon Border & Glow */
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    /* Highlight top edge */
+    border-left: 1px solid rgba(255, 255, 255, 0.2);
+    /* Highlight left edge */
+
+    box-shadow:
+      0 8px 32px 0 rgba(31, 38, 135, 0.15),
+      /* Deep shadow */
+      inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    /* Inner ring */
   }
 
   .panel-header {
-    @apply px-4 py-3 font-semibold text-surface-800;
-    border-bottom: 1px solid rgba(245, 200, 66, 0.3);
+    @apply px-4 py-3 font-semibold text-surface-900;
+    border-bottom: 1px solid rgba(139, 92, 246, 0.3);
   }
 
   /* Chat bubble styles */
   .bubble-user {
-    @apply bg-primary-500 text-surface-800 rounded-2xl rounded-br-md px-4 py-2.5 shadow-sm;
+    @apply bg-primary-600 text-white rounded-2xl rounded-br-md px-4 py-2.5 shadow-lg;
+    box-shadow: 0 4px 15px rgba(124, 58, 237, 0.3);
   }
 
   .bubble-ai {
-    @apply rounded-2xl rounded-bl-md px-4 py-2.5 shadow-sm border;
-    background-color: var(--color-accent-blue);
-    color: var(--color-surface-800);
-    border-color: #8FBDD8;
+    @apply rounded-2xl rounded-bl-md px-6 py-4 shadow-lg backdrop-blur-md;
+    background: linear-gradient(135deg, rgba(99, 180, 237, 0.15), rgba(99, 180, 237, 0.05));
+    color: var(--color-surface-900);
+    border: 1px solid rgba(34, 211, 238, 0.3);
+    box-shadow:
+      0 0 15px rgba(34, 211, 238, 0.1),
+      inset 0 0 10px rgba(34, 211, 238, 0.05);
   }
 
   /* Contact item styles */
   .contact-item {
     @apply flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-200;
   }
-  
+
   .contact-item:hover {
-    background-color: rgba(245, 200, 66, 0.2);
+    background-color: rgba(139, 92, 246, 0.2);
   }
 
   .contact-item.active {
     @apply shadow-sm;
-    background-color: rgba(245, 200, 66, 0.3);
-    box-shadow: inset 0 0 0 1px rgba(245, 200, 66, 0.5);
+    background-color: rgba(139, 92, 246, 0.3);
+    box-shadow: inset 0 0 0 1px rgba(139, 92, 246, 0.5), 0 0 12px rgba(139, 92, 246, 0.2);
   }
 }
 
@@ -168,10 +197,14 @@
 
   /* Blinking cursor animation for streaming */
   @keyframes blink {
-    0%, 50% {
+
+    0%,
+    50% {
       opacity: 1;
     }
-    51%, 100% {
+
+    51%,
+    100% {
       opacity: 0;
     }
   }
@@ -191,26 +224,30 @@
 
   /* Glow effect for active states */
   .glow-primary {
-    box-shadow: 0 0 12px rgba(245, 200, 66, 0.4);
+    box-shadow: 0 0 12px rgba(139, 92, 246, 0.4);
+  }
+
+  .glow-cyan {
+    box-shadow: 0 0 12px rgba(34, 211, 238, 0.4);
   }
 
   /* Background utilities for new color scheme */
   .bg-app {
     background-color: var(--color-background);
   }
-  
+
   .bg-app-muted {
     background-color: var(--color-background-muted);
   }
-  
+
   .bg-panel {
     background-color: var(--color-panel);
   }
-  
+
   .bg-panel-light {
     background-color: var(--color-panel-light);
   }
-  
+
   .bg-panel-dark {
     background-color: var(--color-panel-dark);
   }

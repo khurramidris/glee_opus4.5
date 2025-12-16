@@ -76,9 +76,9 @@ export function ContactsList() {
     };
 
     return (
-        <div className="w-64 flex flex-col bg-panel rounded-2xl h-full overflow-hidden">
+        <div className="w-64 flex flex-col panel rounded-2xl h-full overflow-hidden">
             {/* Header with Logo */}
-            <div className="px-5 py-4 border-b border-white/10">
+            <div className="px-5 py-4">
                 <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shadow-lg">
                         <span className="text-white font-bold text-lg font-display">G</span>
@@ -123,10 +123,6 @@ export function ContactsList() {
                                         isActive && 'ring-white/50'
                                     )}
                                 />
-                                <div className={cn(
-                                    'absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-primary-700',
-                                    getStatusColor(status)
-                                )} />
                             </div>
                             <div className="flex-1 min-w-0">
                                 <div className={cn(
@@ -136,7 +132,7 @@ export function ContactsList() {
                                     {character.name}
                                 </div>
                                 <div className="text-xs text-white/60 truncate">
-                                    {status}, {personality}
+                                    {personality}
                                 </div>
                             </div>
                         </div>

@@ -1,6 +1,6 @@
 import { useState, memo } from 'react';
 import type { Message } from '@/types';
-import { Avatar } from '@/components/ui/Avatar';
+
 import { cn } from '@/lib/utils';
 import { BranchNavigator } from './BranchNavigator';
 import { MessageActions } from './MessageActions';
@@ -75,17 +75,7 @@ export const MessageBubble = memo(function MessageBubble({
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
-      {/* Avatar */}
-      <Avatar
-        fallback={isUser ? 'You' : (message.authorName || 'AI')}
-        size="md"
-        className={cn(
-          'flex-shrink-0 ring-2 ring-primary-300/50',
-          isUser 
-            ? 'bg-gradient-to-br from-primary-400 to-primary-600' 
-            : 'bg-gradient-to-br from-primary-500 to-primary-700'
-        )}
-      />
+
 
       <div
         className={cn(
@@ -105,10 +95,10 @@ export const MessageBubble = memo(function MessageBubble({
         {/* Message content with label */}
         <div
           className={cn(
-            'relative px-4 py-3 shadow-sm transition-all duration-200',
+            'relative shadow-sm transition-all duration-200',
             isUser
-              ? 'bg-primary-600 text-white rounded-2xl rounded-tr-sm'
-              : 'bg-surface-100 text-surface-800 rounded-2xl rounded-tl-sm border border-surface-200'
+              ? 'px-6 py-4 bg-primary-600 text-white rounded-2xl rounded-tr-sm'
+              : 'bubble-ai'
           )}
         >
           {/* Author Label */}
@@ -152,7 +142,7 @@ export const MessageBubble = memo(function MessageBubble({
               </div>
             </div>
           ) : (
-            <p className="whitespace-pre-wrap break-words leading-relaxed text-sm">{message.content}</p>
+            <p className="whitespace-pre-wrap break-words leading-loose text-sm">{message.content}</p>
           )}
         </div>
 

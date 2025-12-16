@@ -82,7 +82,7 @@ export function ChatInput({
       )}
 
       <div className="max-w-4xl mx-auto w-full">
-        <div className="relative bg-surface-100/80 border border-primary-400/40 rounded-2xl shadow-sm transition-all duration-200 focus-within:border-primary-500/60 focus-within:shadow-md focus-within:bg-surface-100">
+        <div className="relative bg-white/5 border border-white/10 rounded-2xl shadow-inner transition-all duration-200 focus-within:bg-white/10 focus-within:border-white/20">
           <textarea
             ref={textareaRef}
             value={content}
@@ -100,7 +100,7 @@ export function ChatInput({
               isOverLimit && 'text-red-500'
             )}
           />
-          
+
           {/* Action buttons inside input */}
           <div className="absolute right-3 bottom-3 flex items-center gap-2">
             {/* Mic Button */}

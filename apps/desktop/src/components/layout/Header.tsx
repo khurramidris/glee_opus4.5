@@ -32,7 +32,7 @@ export function Header() {
     location.pathname !== '/settings';
 
   return (
-    <header className="h-14 flex items-center justify-between px-6 border-b border-surface-200 bg-surface-50">
+    <header className="h-14 flex items-center justify-between px-6 border-b border-white/5 bg-transparent backdrop-blur-sm transition-all duration-200">
       <div className="flex items-center gap-4">
         {showBackButton && (
           <button

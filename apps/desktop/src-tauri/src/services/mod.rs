@@ -1,9 +1,19 @@
+// ============================================
+// Services Module
+// ============================================
+
+pub mod embeddings;
+pub mod memory;
+
 use crate::database::Database;
 use crate::entities::*;
 use crate::repositories::*;
 use crate::error::{AppError, AppResult};
 use crate::setup::paths::AppPaths;
 use crate::state::AppState;
+
+pub use embeddings::EmbeddingService;
+pub use memory::{MemoryService as LongTermMemoryService, MemoryEntry, SummaryService, ConversationSummary};
 
 // ============================================
 // Character Service
@@ -592,6 +602,13 @@ impl SettingsService {
 pub struct MemoryService;
 
 impl MemoryService {
+    /// Build context for LLM generation with tiered memory system:
+    /// Tier 1: System Prompt (character identity + persona)
+    /// Tier 2: Conversation Summaries (compressed old messages)
+    /// Tier 3: Semantic Memories (vector-searched relevant facts)
+    /// Tier 4: Lorebook (keyword-matched world knowledge)
+    /// Tier 5: Recent History (sliding window)
+    /// Tier 6: Response Reserve
     pub fn build_context(db: &Database, conv_id: &str, max_tokens: i32) -> AppResult<ContextResult> {
         let settings = SettingsRepo::get_all(db)?;
         let conversation = ConversationRepo::find_by_id(db, conv_id)?;
@@ -604,13 +621,16 @@ impl MemoryService {
             PersonaRepo::find_default(db)?
         };
         
+        // Budget allocation
         let lorebook_budget = settings.generation.lorebook_budget.unwrap_or(500);
+        let memory_budget = settings.generation.memory_budget.unwrap_or(400);
+        let summary_budget = settings.generation.summary_budget.unwrap_or(300);
         let response_reserve = settings.generation.response_reserve.unwrap_or(512);
         
-        // Build System Prompt
+        // ====== Tier 1: Build System Prompt ======
         let mut system_parts = Vec::new();
         
-        // 1. Char Identity
+        // Character Identity
         if !character.system_prompt.is_empty() {
             system_parts.push(character.system_prompt.clone());
         } else {
@@ -620,14 +640,59 @@ impl MemoryService {
             system_parts.push(p);
         }
         
-        // 2. Persona
+        // Persona
         if let Some(p) = &persona {
             if !p.description.is_empty() {
                 system_parts.push(format!("User persona: {}", p.description));
             }
         }
         
-        // 3. Lorebook
+        // ====== Tier 2: Conversation Summaries ======
+        let summaries = SummaryService::get_for_conversation(db, conv_id, summary_budget)?;
+        if !summaries.is_empty() {
+            let summary_text = summaries.iter()
+                .map(|s| s.content.as_str())
+                .collect::<Vec<_>>()
+                .join("\n");
+            system_parts.push(format!("[Previous conversation summary]\n{}", summary_text));
+        }
+        
+        // ====== Tier 3: Semantic Memories ======
+        // Query text for future semantic search (currently unused in sync context)
+        let _recent_query = messages.iter().rev().take(3)
+            .map(|m| m.content.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        
+        // Try to get relevant memories (without query embedding for now - sync context)
+        let memories = LongTermMemoryService::retrieve_relevant_sync(
+            db,
+            &character.id,
+            None, // No embedding in sync context
+            10,   // Max memories
+            0.5,  // Min similarity
+        ).unwrap_or_default();
+        
+        if !memories.is_empty() {
+            let mut memory_tokens = 0;
+            let mut memory_parts = Vec::new();
+            
+            for (memory, _similarity) in memories {
+                let tokens = estimate_tokens(&memory.content);
+                if memory_tokens + tokens > memory_budget { break; }
+                memory_parts.push(format!("- {}", memory.content));
+                memory_tokens += tokens;
+            }
+            
+            if !memory_parts.is_empty() {
+                system_parts.push(format!(
+                    "[Important facts about the user]\n{}",
+                    memory_parts.join("\n")
+                ));
+            }
+        }
+        
+        // ====== Tier 4: Lorebook ======
         let recent_text = messages.iter().rev().take(10).map(|m| m.content.as_str()).collect::<Vec<_>>().join(" ");
         let lore_entries = LorebookService::find_matching_entries(db, conv_id, &recent_text)?;
         
@@ -647,20 +712,21 @@ impl MemoryService {
             used_lore_tokens += tokens;
         }
         
+        // Example dialogues
+        if !character.example_dialogues.is_empty() {
+            system_parts.push(format!("Examples:\n{}", character.example_dialogues));
+        }
+        
         // Assemble final system prompt
         let mut final_parts = Vec::new();
         final_parts.extend(before_sys);
         final_parts.extend(system_parts);
         final_parts.extend(after_sys);
         
-        if !character.example_dialogues.is_empty() {
-            final_parts.push(format!("Examples:\n{}", character.example_dialogues));
-        }
-        
         let final_system = final_parts.join("\n\n");
         let sys_tokens = estimate_tokens(&final_system);
         
-        // 4. Conversation History
+        // ====== Tier 5: Conversation History ======
         let available = max_tokens - sys_tokens - response_reserve;
         let mut history = Vec::new();
         let mut history_tokens = 0;
