@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { useCharacterStore } from '@/stores/characterStore';
 import { useConversationStore } from '@/stores/conversationStore';
 import { Avatar } from '@/components/ui/Avatar';
@@ -73,19 +74,23 @@ export function ContactsList() {
 
             {/* Character List */}
             <div className="flex-1 overflow-y-auto px-3 py-1 no-scrollbar space-y-0.5">
-                {sortedCharacters.map((character) => {
+                {sortedCharacters.map((character, index) => {
                     const conv = conversations.find(c => c.characters?.some(char => char.id === character.id));
                     const isActive = conv && currentConversationId === conv.id;
                     const isLoading = isStartingChat === character.id;
                     const personality = character.personality?.split(',')[0]?.trim() || character.tags?.[0] || 'Creative';
 
                     return (
-                        <div
+                        <motion.div
                             key={character.id}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: index * 0.03, duration: 0.2 }}
                             onClick={() => handleCharacterClick(character.id)}
                             className={cn(
                                 'group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 cursor-pointer',
                                 'border border-transparent',
+                                'hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary-500/10',
                                 isActive
                                     ? 'bg-white/15 border-white/20 shadow-sm'
                                     : 'hover:bg-white/8',
@@ -112,14 +117,30 @@ export function ContactsList() {
                                     {personality}
                                 </div>
                             </div>
-                        </div>
+                        </motion.div>
                     );
                 })}
 
                 {sortedCharacters.length === 0 && (
-                    <div className="text-center py-8 text-white/40 text-sm">
-                        No characters yet
-                    </div>
+                    <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex flex-col items-center justify-center py-12 px-4 text-center"
+                    >
+                        <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-4">
+                            <svg className="w-8 h-8 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                        </div>
+                        <h3 className="text-white/70 font-medium mb-1">No characters yet</h3>
+                        <p className="text-white/40 text-sm mb-4">Create your first AI companion</p>
+                        <button
+                            onClick={() => navigate('/characters/new')}
+                            className="text-primary-400 text-sm font-medium hover:text-primary-300 transition-colors"
+                        >
+                            + Create Character
+                        </button>
+                    </motion.div>
                 )}
             </div>
 

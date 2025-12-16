@@ -4,7 +4,6 @@ import { useSmartSetup } from '@/hooks/useSmartSetup';
 import { DownloadProgress } from './DownloadProgress';
 import { SetupComplete } from './SetupComplete';
 import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
 
 type OnboardingStep = 'analyzing' | 'welcome' | 'download' | 'complete';
 
@@ -35,12 +34,12 @@ export function WelcomeScreen() {
 
   if (step === 'analyzing' || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-surface-100 p-8">
-        <Card className="max-w-md w-full text-center p-8">
+      <div className="min-h-screen flex items-center justify-center p-8">
+        <div className="max-w-md w-full text-center p-8 panel rounded-2xl">
           <div className="animate-spin w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-surface-900">Analyzing System...</h2>
-          <p className="text-surface-500 mt-2">Checking hardware for optimal performance</p>
-        </Card>
+          <h2 className="text-xl font-semibold text-white">Analyzing System...</h2>
+          <p className="text-white/60 mt-2">Checking hardware for optimal performance</p>
+        </div>
       </div>
     );
   }
@@ -63,18 +62,18 @@ export function WelcomeScreen() {
   const isGPU = status?.recommended_variant !== 'cpu';
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-surface-100 p-8">
-      <Card className="max-w-lg w-full text-center">
+    <div className="min-h-screen flex items-center justify-center p-8">
+      <div className="max-w-lg w-full text-center panel rounded-2xl p-8">
         {/* Logo */}
         <div className="mb-6">
-          <div className="w-20 h-20 mx-auto mb-4 bg-primary-500 rounded-2xl flex items-center justify-center">
+          <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl flex items-center justify-center shadow-lg shadow-primary-500/30">
             <span className="text-3xl font-bold text-white">G</span>
           </div>
-          <h1 className="text-3xl font-bold text-surface-900">Welcome to Glee</h1>
+          <h1 className="text-3xl font-bold text-white font-display">Welcome to Glee</h1>
           {status && (
-            <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-surface-100 rounded-full border border-surface-200">
+            <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-white/10 rounded-full border border-white/10">
               <span className="w-2 h-2 rounded-full bg-green-500" />
-              <span className="text-xs font-medium text-surface-600">
+              <span className="text-xs font-medium text-white/70">
                 {gpuName} Detected
               </span>
             </div>
@@ -82,10 +81,10 @@ export function WelcomeScreen() {
         </div>
 
         {/* Tagline */}
-        <p className="text-lg text-surface-600 mb-8">
+        <p className="text-lg text-white/80 mb-8">
           Your private AI character companion.
           <br />
-          <span className="text-surface-500">Offline. Uncensored. Yours.</span>
+          <span className="text-white/50">Offline. Uncensored. Yours.</span>
         </p>
 
         {/* Features */}
@@ -114,17 +113,17 @@ export function WelcomeScreen() {
           <Button onClick={handleStartDownload} className="w-full" size="lg">
             Install & Get Started
           </Button>
-          <p className="text-xs text-surface-500">
+          <p className="text-xs text-white/40">
             ~2.5GB download • One-time setup • Works offline after
           </p>
           <button
             onClick={handleSkipDownload}
-            className="text-sm text-surface-500 hover:text-surface-700"
+            className="text-sm text-white/50 hover:text-white/70 transition-colors"
           >
             I already have a model file →
           </button>
         </div>
-      </Card>
+      </div>
     </div>
   );
 }
@@ -139,12 +138,13 @@ function FeatureItem({
   description: string;
 }) {
   return (
-    <div className="flex items-start gap-4 p-3 bg-surface-100 rounded-lg border border-surface-200">
+    <div className="flex items-start gap-4 p-3 bg-white/5 rounded-lg border border-white/10">
       <span className="text-2xl">{icon}</span>
       <div>
-        <h3 className="font-medium text-surface-900">{title}</h3>
-        <p className="text-sm text-surface-500">{description}</p>
+        <h3 className="font-medium text-white">{title}</h3>
+        <p className="text-sm text-white/50">{description}</p>
       </div>
     </div>
   );
 }
+

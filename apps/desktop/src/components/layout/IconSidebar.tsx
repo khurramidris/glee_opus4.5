@@ -34,7 +34,7 @@ export function IconSidebar() {
     );
 
     return (
-        <aside className="w-16 flex flex-col items-center py-4 gap-2 bg-transparent h-full">
+        <aside className="w-12 flex flex-col items-center py-4 gap-2 bg-transparent h-full">
             {/* Top Navigation Icons */}
             <div className="flex flex-col items-center gap-1">
                 <NavItem

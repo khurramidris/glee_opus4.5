@@ -3,12 +3,10 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { cn } from '@/lib/utils';
 
 export function TitleBar() {
-    const [appWindow, setAppWindow] = useState<ReturnType<typeof getCurrentWindow> | null>(null);
     const [isMaximized, setIsMaximized] = useState(false);
 
     useEffect(() => {
         const win = getCurrentWindow();
-        setAppWindow(win);
 
         const checkMaximized = async () => {
             try {
@@ -30,20 +28,24 @@ export function TitleBar() {
         };
     }, []);
 
-    const minimize = () => appWindow?.minimize();
+    const minimize = async () => {
+        await getCurrentWindow().minimize();
+    };
 
     const toggleMaximize = async () => {
-        if (!appWindow) return;
-        const maximized = await appWindow.isMaximized();
+        const win = getCurrentWindow();
+        const maximized = await win.isMaximized();
         if (maximized) {
-            await appWindow.unmaximize();
+            await win.unmaximize();
         } else {
-            await appWindow.maximize();
+            await win.maximize();
         }
         setIsMaximized(!maximized);
     };
 
-    const close = () => appWindow?.close();
+    const close = async () => {
+        await getCurrentWindow().close();
+    };
 
     const WindowButton = ({
         onClick,

@@ -18,8 +18,8 @@ export function SettingsPanel() {
   ];
 
   return (
-    <div className="h-full flex flex-col bg-surface-50">
-      <div className="border-b border-surface-200 bg-surface-50/80 backdrop-blur-sm sticky top-0 z-10">
+    <div className="h-full flex flex-col">
+      <div className="border-b border-white/10 bg-white/5 backdrop-blur-sm sticky top-0 z-10">
         <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} className="px-6" />
       </div>
 
@@ -35,3 +35,4 @@ export function SettingsPanel() {
     </div>
   );
 }
+

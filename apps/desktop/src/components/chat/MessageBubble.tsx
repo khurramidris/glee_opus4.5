@@ -12,7 +12,7 @@ interface MessageBubbleProps {
   getBranchSiblings: (messageId: string) => Promise<Message[]>;
 }
 
-function formatTime(date: Date | string | number): string {
+function formatRelativeTime(date: Date | string | number): string {
   let d: Date;
   if (typeof date === 'number') {
     d = new Date(date);
@@ -26,7 +26,17 @@ function formatTime(date: Date | string | number): string {
     return '';
   }
 
-  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return d.toLocaleDateString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
 export const MessageBubble = memo(function MessageBubble({
@@ -131,13 +141,13 @@ export const MessageBubble = memo(function MessageBubble({
               <div className="flex justify-end gap-2 mt-3 pt-2 border-t border-white/10">
                 <button
                   onClick={handleCancelEdit}
-                  className="text-xs opacity-70 hover:opacity-100 font-medium px-2 py-1"
+                  className="text-sm opacity-70 hover:opacity-100 font-medium px-4 py-2 min-h-[40px] rounded-lg hover:bg-white/10 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSaveEdit}
-                  className="text-xs font-semibold bg-white/20 hover:bg-white/30 px-3 py-1 rounded-md transition-colors"
+                  className="text-sm font-semibold bg-white/20 hover:bg-white/30 px-4 py-2 min-h-[40px] rounded-lg transition-colors"
                 >
                   Save
                 </button>
@@ -155,7 +165,7 @@ export const MessageBubble = memo(function MessageBubble({
           'text-[11px] font-medium text-white/30 mt-2',
           isUser ? 'mr-1' : 'ml-1'
         )}>
-          {formatTime(message.createdAt)}
+          {formatRelativeTime(message.createdAt)}
         </span>
 
         {/* Actions */}

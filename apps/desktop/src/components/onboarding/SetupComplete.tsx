@@ -1,5 +1,4 @@
 import { motion } from 'framer-motion';
-import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 
 interface SetupCompleteProps {
@@ -8,14 +7,14 @@ interface SetupCompleteProps {
 
 export function SetupComplete({ onContinue }: SetupCompleteProps) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-surface-50 p-8">
-      <Card className="max-w-lg w-full text-center">
+    <div className="min-h-screen flex items-center justify-center p-8">
+      <div className="max-w-lg w-full text-center panel rounded-2xl p-8">
         {/* Success Animation */}
         <motion.div
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
           transition={{ type: 'spring', duration: 0.5 }}
-          className="w-20 h-20 mx-auto mb-6 bg-green-500 rounded-full flex items-center justify-center shadow-lg shadow-green-200"
+          className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center shadow-lg shadow-green-500/30"
         >
           <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <motion.path
@@ -35,10 +34,10 @@ export function SetupComplete({ onContinue }: SetupCompleteProps) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
         >
-          <h1 className="text-2xl font-bold text-surface-900 mb-2">
+          <h1 className="text-2xl font-bold text-white mb-2 font-display">
             You're All Set!
           </h1>
-          <p className="text-surface-600 mb-8">
+          <p className="text-white/60 mb-8">
             Glee is ready. Start chatting with your first character.
           </p>
 
@@ -62,18 +61,19 @@ export function SetupComplete({ onContinue }: SetupCompleteProps) {
             Start Chatting
           </Button>
         </motion.div>
-      </Card>
+      </div>
     </div>
   );
 }
 
 function TipItem({ number, text }: { number: number; text: string }) {
   return (
-    <div className="flex items-center gap-3 p-3 bg-surface-100 rounded-lg border border-surface-200">
-      <span className="w-6 h-6 bg-primary-500 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-sm">
+    <div className="flex items-center gap-3 p-3 bg-white/5 rounded-lg border border-white/10">
+      <span className="w-6 h-6 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-sm">
         {number}
       </span>
-      <span className="text-sm text-surface-700">{text}</span>
+      <span className="text-sm text-white/70">{text}</span>
     </div>
   );
 }
+

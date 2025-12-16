@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useDownload } from '@/hooks/useDownload';
 import { useUIStore } from '@/stores/uiStore';
-import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Progress } from '@/components/ui/Progress';
 import { formatBytes, formatSpeed } from '@/lib/format';
@@ -97,13 +96,13 @@ export function DownloadProgress({ variant, onComplete, onSkip }: DownloadProgre
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-surface-50 p-8">
-      <Card className="max-w-lg w-full">
+    <div className="min-h-screen flex items-center justify-center p-8">
+      <div className="max-w-lg w-full panel rounded-2xl p-8">
         <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-surface-900 mb-2">
+          <h1 className="text-2xl font-bold text-white mb-2 font-display">
             {phase === 'binary' ? 'Setting up Engine' : 'Downloading Brain'}
           </h1>
-          <p className="text-surface-600">
+          <p className="text-white/60">
             {phase === 'binary'
               ? `Installing optimized AI engine for your ${variant.toUpperCase()}...`
               : 'Downloading the AI model (approx 2.5GB)...'}
@@ -115,7 +114,7 @@ export function DownloadProgress({ variant, onComplete, onSkip }: DownloadProgre
           <Progress value={percentage} size="lg" showLabel />
 
           {progress && (
-            <div className="flex justify-between text-sm text-surface-500">
+            <div className="flex justify-between text-sm text-white/50">
               <span>
                 {formatBytes(progress.downloadedBytes)} / {formatBytes(progress.totalBytes)}
               </span>
@@ -125,7 +124,7 @@ export function DownloadProgress({ variant, onComplete, onSkip }: DownloadProgre
 
           {error && (
             <div className="text-center space-y-3">
-              <p className="text-sm text-red-500">{error}</p>
+              <p className="text-sm text-red-400">{error}</p>
               {!isDownloading && (
                 <Button
                   variant="primary"
@@ -146,28 +145,28 @@ export function DownloadProgress({ variant, onComplete, onSkip }: DownloadProgre
           {isDownloading ? (
             <>
               <div className="w-2 h-2 bg-primary-500 rounded-full animate-pulse" />
-              <span className="text-surface-600">
+              <span className="text-white/60">
                 {phase === 'binary' ? 'Downloading Engine...' : 'Downloading Model...'}
               </span>
             </>
           ) : currentDownload?.status === 'paused' ? (
             <>
-              <div className="w-2 h-2 bg-surface-500 rounded-full" />
-              <span className="text-surface-600">Paused</span>
+              <div className="w-2 h-2 bg-white/50 rounded-full" />
+              <span className="text-white/60">Paused</span>
             </>
           ) : (
             <>
-              <div className="w-2 h-2 bg-surface-300 rounded-full" />
-              <span className="text-surface-400">Waiting...</span>
+              <div className="w-2 h-2 bg-white/30 rounded-full" />
+              <span className="text-white/40">Waiting...</span>
             </>
           )}
         </div>
 
         {/* Steps indicator */}
         <div className="flex items-center justify-center gap-2 mb-6 text-sm">
-          <span className={phase === 'binary' ? "font-bold text-primary-600" : "text-surface-400"}>1. Engine</span>
-          <span className="text-surface-300">→</span>
-          <span className={phase === 'model' ? "font-bold text-primary-600" : "text-surface-400"}>2. Model</span>
+          <span className={phase === 'binary' ? "font-bold text-primary-400" : "text-white/40"}>1. Engine</span>
+          <span className="text-white/30">→</span>
+          <span className={phase === 'model' ? "font-bold text-primary-400" : "text-white/40"}>2. Model</span>
         </div>
 
         {/* Actions */}
@@ -183,7 +182,7 @@ export function DownloadProgress({ variant, onComplete, onSkip }: DownloadProgre
             {isDownloading ? 'Pause' : 'Resume'}
           </Button>
         </div>
-      </Card>
+      </div>
     </div>
   );
 }
