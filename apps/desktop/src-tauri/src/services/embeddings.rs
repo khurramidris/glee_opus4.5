@@ -57,8 +57,14 @@ impl EmbeddingService {
         }
         
         // Truncate very long text to avoid memory issues
+        // SAFETY: Find valid UTF-8 boundary to prevent panic on multi-byte chars
         let truncated = if text.len() > 8000 {
-            &text[..8000]
+            let mut end = 8000;
+            // Walk backwards to find valid UTF-8 character boundary
+            while !text.is_char_boundary(end) && end > 0 {
+                end -= 1;
+            }
+            &text[..end]
         } else {
             text
         };

@@ -18,13 +18,13 @@ export function SettingsPanel() {
   ];
 
   return (
-    <div className="h-full flex flex-col bg-surface-100">
-      <div className="border-b border-surface-200 bg-surface-50">
-        <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} className="px-4" />
+    <div className="h-full flex flex-col bg-surface-50">
+      <div className="border-b border-surface-200 bg-surface-50/80 backdrop-blur-sm sticky top-0 z-10">
+        <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} className="px-6" />
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-2xl mx-auto">
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-2xl mx-auto px-6 py-8">
           {activeTab === 'generation' && <GenerationSettings />}
           {activeTab === 'memory' && <MemorySettings />}
           {activeTab === 'model' && <ModelSettings />}

@@ -4,10 +4,10 @@ import { useCharacters } from '@/hooks/useCharacters';
 import { CharacterCard } from './CharacterCard';
 import { ImportDialog } from './ImportDialog';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 import { Spinner } from '@/components/ui/Spinner';
 import { Modal } from '@/components/ui/Modal';
 import { commands } from '@/lib/commands';
+import { cn } from '@/lib/utils';
 
 export function CharacterBrowser() {
   const navigate = useNavigate();
@@ -58,15 +58,27 @@ export function CharacterBrowser() {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-surface-50">
       {/* Search and Actions Bar */}
-      <div className="flex items-center gap-4 p-4 border-b border-surface-200 bg-surface-50">
-        <div className="flex-1 max-w-md">
-          <Input
+      <div className="flex items-center gap-4 p-4 border-b border-surface-200">
+        <div className="flex-1 max-w-md relative">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <svg className="w-4 h-4 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+          <input
+            type="text"
             placeholder="Search characters..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full"
+            className={cn(
+              "w-full pl-10 pr-4 py-2.5 rounded-lg",
+              "bg-surface-100 border border-surface-200",
+              "text-sm text-surface-800 placeholder-surface-400",
+              "focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500",
+              "transition-all duration-150"
+            )}
           />
         </div>
         <Button variant="secondary" onClick={() => setShowImportDialog(true)}>
@@ -80,22 +92,25 @@ export function CharacterBrowser() {
       {/* Character Grid */}
       <div className="flex-1 overflow-y-auto p-4">
         {filteredCharacters.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="w-16 h-16 mb-4 text-surface-400">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="flex flex-col items-center justify-center h-full text-center py-16">
+            <div className="w-20 h-20 mb-6 rounded-2xl bg-surface-100 flex items-center justify-center">
+              <svg className="w-10 h-10 text-surface-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
             </div>
-            <h3 className="text-lg font-medium text-surface-700 mb-2">
+            <h3 className="text-lg font-semibold text-surface-800 mb-2 font-display">
               {searchQuery ? 'No characters found' : 'No characters yet'}
             </h3>
-            <p className="text-surface-500 mb-4">
+            <p className="text-surface-500 mb-6 max-w-sm">
               {searchQuery
-                ? 'Try a different search term'
-                : 'Create your first character to get started'}
+                ? 'Try a different search term or clear the search'
+                : 'Create your first AI character to start chatting'}
             </p>
             {!searchQuery && (
               <Button onClick={() => navigate('/characters/new')}>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
                 Create Character
               </Button>
             )}
@@ -103,7 +118,13 @@ export function CharacterBrowser() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredCharacters.map((character) => (
-              <div key={character.id} className={isStartingChat === character.id ? 'opacity-50 pointer-events-none' : ''}>
+              <div
+                key={character.id}
+                className={cn(
+                  "transition-opacity duration-150",
+                  isStartingChat === character.id && 'opacity-50 pointer-events-none'
+                )}
+              >
                 <CharacterCard
                   character={character}
                   onChat={() => handleStartChat(character.id)}

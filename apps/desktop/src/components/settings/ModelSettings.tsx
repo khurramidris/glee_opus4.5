@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Spinner } from '@/components/ui/Spinner';
 import { open } from '@tauri-apps/plugin-dialog';
+import { cn } from '@/lib/utils';
 
 export function ModelSettings() {
   const { settings, updateSetting, fetchSettings } = useSettings();
@@ -66,44 +67,44 @@ export function ModelSettings() {
   };
 
   const statusConfig = {
-    loading: { color: 'warning', label: 'Loading...' },
-    ready: { color: 'success', label: 'Ready' },
-    error: { color: 'danger', label: 'Error' },
-    not_found: { color: 'default', label: 'Not Loaded' },
-  } as const;
+    loading: { variant: 'warning' as const, label: 'Loading...', dot: true },
+    ready: { variant: 'success' as const, label: 'Ready', dot: true },
+    error: { variant: 'danger' as const, label: 'Error', dot: true },
+    not_found: { variant: 'default' as const, label: 'Not Loaded', dot: false },
+  };
 
   const currentStatus = statusConfig[status as keyof typeof statusConfig] || statusConfig.not_found;
 
   return (
     <div className="space-y-6">
+      {/* Section Header */}
       <div>
-        <h2 className="text-lg font-semibold text-surface-900 mb-2">Model Settings</h2>
-        <p className="text-surface-500 text-sm">
-          Configure and manage the AI model.
+        <h2 className="text-xl font-semibold text-surface-900 font-display">Model Settings</h2>
+        <p className="text-surface-500 text-sm mt-1">
+          Configure and manage the AI model for character conversations.
         </p>
       </div>
 
       {/* Current Model Status */}
-      <Card>
-        <h3 className="text-sm font-medium text-surface-700 mb-4">Model Status</h3>
-
-        <div className="flex flex-col gap-4">
+      <Card padding="lg">
+        <div className="space-y-4">
           <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-surface-800">Model Status</h3>
             <div className="flex items-center gap-3">
               {isLoading ? (
                 <Spinner size="sm" />
               ) : (
-                <Badge variant={currentStatus.color}>{currentStatus.label}</Badge>
+                <Badge variant={currentStatus.variant} dot={currentStatus.dot}>
+                  {currentStatus.label}
+                </Badge>
               )}
-            </div>
 
-            <div className="flex gap-2">
               {isLoaded ? (
-                <Button variant="secondary" onClick={handleStopModel} disabled={isLoading}>
+                <Button variant="secondary" size="sm" onClick={handleStopModel} disabled={isLoading}>
                   Unload Model
                 </Button>
               ) : (
-                <Button onClick={handleStartModel} disabled={isLoading}>
+                <Button size="sm" onClick={handleStartModel} disabled={isLoading}>
                   Load Model
                 </Button>
               )}
@@ -111,21 +112,30 @@ export function ModelSettings() {
           </div>
 
           {/* Path Display & Change Button */}
-          <div className="flex items-center gap-2 p-3 bg-surface-100 rounded border border-surface-200">
+          <div className={cn(
+            "flex items-center gap-3 p-3 rounded-lg",
+            "bg-surface-100 border border-surface-200"
+          )}>
             <div className="flex-1 text-sm text-surface-600 font-mono truncate">
               {modelPath || settings?.model.path || "No model selected"}
             </div>
             <Button size="sm" variant="secondary" onClick={handleBrowse}>
-              Change Model
+              Change
             </Button>
           </div>
         </div>
       </Card>
 
       {/* GPU Settings */}
-      <Card>
-        <h3 className="text-sm font-medium text-surface-700 mb-4">GPU Acceleration</h3>
+      <Card padding="lg">
         <div className="space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold text-surface-800">GPU Acceleration</h3>
+            <p className="text-xs text-surface-500 mt-0.5">
+              Set the number of layers to offload to GPU for faster inference.
+            </p>
+          </div>
+
           <Input
             label="GPU Layers"
             type="number"
@@ -133,10 +143,14 @@ export function ModelSettings() {
             max={100}
             value={gpuLayers}
             onChange={(e) => setGpuLayers(parseInt(e.target.value) || 0)}
+            hint="Higher values use more GPU memory but improve speed. Use 0 for CPU-only."
           />
-          <Button variant="secondary" onClick={handleSaveGpuLayers} isLoading={isSaving}>
-            Save GPU Settings
-          </Button>
+
+          <div className="flex justify-end">
+            <Button variant="secondary" onClick={handleSaveGpuLayers} isLoading={isSaving}>
+              Save GPU Settings
+            </Button>
+          </div>
         </div>
       </Card>
     </div>

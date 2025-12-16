@@ -7,55 +7,67 @@ export function StatusBar() {
 
   const statusConfig = {
     loading: {
-      color: 'text-amber-600',
-      bg: 'bg-amber-500',
+      dotClass: 'bg-amber-400 animate-pulse',
+      textClass: 'text-amber-400',
       label: 'Loading model...',
     },
     ready: {
-      color: 'text-emerald-600',
-      bg: 'bg-emerald-500',
+      dotClass: 'bg-emerald-400',
+      textClass: 'text-emerald-400',
       label: 'Model ready',
     },
     error: {
-      color: 'text-red-600',
-      bg: 'bg-red-500',
+      dotClass: 'bg-red-400',
+      textClass: 'text-red-400',
       label: 'Model error',
     },
     not_found: {
-      color: 'text-surface-500',
-      bg: 'bg-surface-400',
+      dotClass: 'bg-surface-400',
+      textClass: 'text-surface-500',
       label: 'No model loaded',
     },
     not_loaded: {
-      color: 'text-surface-500',
-      bg: 'bg-surface-400',
+      dotClass: 'bg-surface-400',
+      textClass: 'text-surface-500',
       label: 'Model not loaded',
     },
   };
 
   const config = statusConfig[status] || statusConfig.not_found;
 
+  // Get just the filename from path
+  const modelName = modelPath ? modelPath.split(/[/\\]/).pop() : null;
+
   return (
-    <footer className="h-8 flex items-center justify-between px-4 border-t border-surface-200 bg-surface-50 text-xs">
+    <footer className={cn(
+      "h-8 flex items-center justify-between px-4",
+      "border-t border-surface-200/50",
+      "bg-surface-50/80 backdrop-blur-sm",
+      "text-xs"
+    )}>
       <div className="flex items-center gap-4">
+        {/* Status indicator */}
         <div className="flex items-center gap-2">
           {status === 'loading' ? (
-            <Spinner size="sm" className={config.color} />
+            <Spinner size="sm" className={config.textClass} />
           ) : (
-            <span className={cn('w-2 h-2 rounded-full', config.bg)} />
+            <span className={cn('w-1.5 h-1.5 rounded-full', config.dotClass)} />
           )}
-          <span className={config.color}>{config.label}</span>
+          <span className={cn('font-medium', config.textClass)}>
+            {config.label}
+          </span>
         </div>
 
-        {modelPath && (
-          <span className="text-surface-500 truncate max-w-xs">
-            {modelPath.split('/').pop()}
+        {/* Model name */}
+        {modelName && (
+          <span className="text-surface-400 truncate max-w-xs font-mono text-[11px]">
+            {modelName}
           </span>
         )}
       </div>
 
-      <div className="flex items-center gap-4 text-surface-500">
-        <span>v0.1.0</span>
+      <div className="flex items-center gap-4 text-surface-400">
+        <span className="font-medium">v0.1.0</span>
       </div>
     </footer>
   );

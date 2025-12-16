@@ -5,18 +5,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Progress } from '@/components/ui/Progress';
 import { formatBytes, formatSpeed } from '@/lib/format';
-
-// Placeholder URLs - in production these would come from config/env
-// Placeholder URLs - in production these would come from config/env
-// Production R2 URLs
-// Base: https://pub-bd4eb9ce19dd48f1b73327a44e10e493.r2.dev
-const BINARY_URLS = {
-  cuda: "https://pub-bd4eb9ce19dd48f1b73327a44e10e493.r2.dev/bin/llama-cuda.zip",
-  rocm: "https://pub-bd4eb9ce19dd48f1b73327a44e10e493.r2.dev/bin/llama-rocm.zip",
-  cpu: "https://pub-bd4eb9ce19dd48f1b73327a44e10e493.r2.dev/bin/llama-cpu.zip",
-};
-
-const MODEL_URL = "https://pub-bd4eb9ce19dd48f1b73327a44e10e493.r2.dev/models/tiny-llm.gguf";
+import { getBinaryUrl, getModelUrl } from '@/config/downloads';
 
 interface DownloadProgressProps {
   variant: string;
@@ -50,7 +39,9 @@ export function DownloadProgress({ variant, onComplete, onSkip }: DownloadProgre
 
   const startBinaryDownload = async () => {
     setPhase('binary');
-    const url = BINARY_URLS[variant as keyof typeof BINARY_URLS] || BINARY_URLS.cpu;
+    // Use config helper to get the correct URL for the variant
+    const validVariant = (variant === 'cuda' || variant === 'rocm' || variant === 'cpu') ? variant : 'cpu';
+    const url = getBinaryUrl(validVariant);
     // Note: The backend needs to know we are downloading a binary to put it in valid bin dir
     // For now we reuse the startDownload which likely just puts it in default download dir
     // We might need to extend startDownload input to specify 'target_dir' or 'type'
@@ -66,7 +57,7 @@ export function DownloadProgress({ variant, onComplete, onSkip }: DownloadProgre
   const startModelDownload = async () => {
     setPhase('model');
     try {
-      await startDownload({ url: MODEL_URL, downloadType: 'model' });
+      await startDownload({ url: getModelUrl(), downloadType: 'model' });
     } catch (e) {
       addToast({ type: 'error', message: `Failed to download model: ${e}` });
     }
@@ -133,7 +124,20 @@ export function DownloadProgress({ variant, onComplete, onSkip }: DownloadProgre
           )}
 
           {error && (
-            <p className="text-sm text-red-500 text-center">{error}</p>
+            <div className="text-center space-y-3">
+              <p className="text-sm text-red-500">{error}</p>
+              {!isDownloading && (
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    phase === 'binary' ? startBinaryDownload() : startModelDownload();
+                  }}
+                  className="w-full"
+                >
+                  Retry Download
+                </Button>
+              )}
+            </div>
           )}
         </div>
 

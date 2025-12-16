@@ -758,6 +758,157 @@ pub struct ContextResult {
     pub total_tokens: i32,
 }
 
+impl MemoryService {
+    /// Async version of build_context that enables semantic memory search
+    /// by generating query embeddings from recent messages
+    pub async fn build_context_async(
+        db: &Database,
+        sidecar: &crate::sidecar::SidecarHandle,
+        conv_id: &str,
+        max_tokens: i32,
+    ) -> AppResult<ContextResult> {
+        let settings = SettingsRepo::get_all(db)?;
+        let conversation = ConversationRepo::find_by_id(db, conv_id)?;
+        let messages = MessageRepo::find_active_branch(db, conv_id)?;
+        
+        let character = conversation.characters.first().ok_or(AppError::NotFound("No char".into()))?;
+        let persona = if let Some(ref pid) = conversation.persona_id {
+            PersonaRepo::find_by_id(db, pid).ok()
+        } else {
+            PersonaRepo::find_default(db)?
+        };
+        
+        // Budget allocation
+        let lorebook_budget = settings.generation.lorebook_budget.unwrap_or(500);
+        let memory_budget = settings.generation.memory_budget.unwrap_or(400);
+        let summary_budget = settings.generation.summary_budget.unwrap_or(300);
+        let response_reserve = settings.generation.response_reserve.unwrap_or(512);
+        
+        // ====== Tier 1: Build System Prompt ======
+        let mut system_parts = Vec::new();
+        
+        // Character Identity
+        if !character.system_prompt.is_empty() {
+            system_parts.push(character.system_prompt.clone());
+        } else {
+            let mut p = format!("You are {}.", character.name);
+            if !character.description.is_empty() { p.push_str(&format!("\n{}", character.description)); }
+            if !character.personality.is_empty() { p.push_str(&format!("\nPersonality: {}", character.personality)); }
+            system_parts.push(p);
+        }
+        
+        // Persona
+        if let Some(p) = &persona {
+            if !p.description.is_empty() {
+                system_parts.push(format!("User persona: {}", p.description));
+            }
+        }
+        
+        // ====== Tier 2: Conversation Summaries ======
+        let summaries = SummaryService::get_for_conversation(db, conv_id, summary_budget)?;
+        if !summaries.is_empty() {
+            let summary_text = summaries.iter()
+                .map(|s| s.content.as_str())
+                .collect::<Vec<_>>()
+                .join("\n");
+            system_parts.push(format!("[Previous conversation summary]\n{}", summary_text));
+        }
+        
+        // ====== Tier 3: Semantic Memories (with actual embedding!) ======
+        // Generate query from recent messages
+        let recent_query = messages.iter().rev().take(3)
+            .map(|m| m.content.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        
+        // Generate query embedding asynchronously
+        let query_embedding = EmbeddingService::generate(sidecar, &recent_query).await.ok();
+        
+        // Retrieve with semantic search using actual embedding
+        let memories = LongTermMemoryService::retrieve_relevant_sync_with_recency(
+            db,
+            &character.id,
+            query_embedding.as_deref(),
+            10,
+            0.5,
+        ).unwrap_or_default();
+        
+        if !memories.is_empty() {
+            let mut memory_tokens = 0;
+            let mut memory_parts = Vec::new();
+            
+            for (memory, _score) in memories {
+                let tokens = estimate_tokens(&memory.content);
+                if memory_tokens + tokens > memory_budget { break; }
+                memory_parts.push(format!("- {}", memory.content));
+                memory_tokens += tokens;
+            }
+            
+            if !memory_parts.is_empty() {
+                system_parts.push(format!(
+                    "[Important facts about the user]\n{}",
+                    memory_parts.join("\n")
+                ));
+            }
+        }
+        
+        // ====== Tier 4: Lorebook ======
+        let recent_text = messages.iter().rev().take(10).map(|m| m.content.as_str()).collect::<Vec<_>>().join(" ");
+        let lore_entries = LorebookService::find_matching_entries(db, conv_id, &recent_text)?;
+        
+        let mut used_lore_tokens = 0;
+        let mut before_sys = Vec::new();
+        let mut after_sys = Vec::new();
+        
+        for entry in lore_entries {
+            let tokens = estimate_tokens(&entry.content);
+            if used_lore_tokens + tokens > lorebook_budget { break; }
+            
+            if entry.insertion_position == "before_system" {
+                before_sys.push(entry.content);
+            } else {
+                after_sys.push(entry.content);
+            }
+            used_lore_tokens += tokens;
+        }
+        
+        // Example dialogues
+        if !character.example_dialogues.is_empty() {
+            system_parts.push(format!("Examples:\n{}", character.example_dialogues));
+        }
+        
+        // Assemble final system prompt
+        let mut final_parts = Vec::new();
+        final_parts.extend(before_sys);
+        final_parts.extend(system_parts);
+        final_parts.extend(after_sys);
+        
+        let final_system = final_parts.join("\n\n");
+        let sys_tokens = estimate_tokens(&final_system);
+        
+        // ====== Tier 5: Conversation History ======
+        let available = max_tokens - sys_tokens - response_reserve;
+        let mut history = Vec::new();
+        let mut history_tokens = 0;
+        
+        for msg in messages.iter().rev() {
+            let t = msg.token_count;
+            if history_tokens + t > available { break; }
+            history.push(msg.clone());
+            history_tokens += t;
+        }
+        history.reverse();
+        
+        Ok(ContextResult {
+            system_prompt: final_system,
+            messages: history,
+            character_name: character.name.clone(),
+            persona_name: persona.map(|p| p.name).unwrap_or("User".into()),
+            total_tokens: sys_tokens + history_tokens,
+        })
+    }
+}
+
 // ============================================
 // Export / Import
 // ============================================
@@ -768,7 +919,15 @@ impl ExportService {
         let character = CharacterRepo::find_by_id(db, id)?;
         let avatar_base64 = if let Some(ref path) = character.avatar_path {
             let full = paths.avatar_file_path(path);
-            if full.exists() {
+            
+            // SECURITY: Validate path is within avatars directory to prevent path traversal
+            let canonical = full.canonicalize().unwrap_or(full.clone());
+            let avatars_canonical = paths.avatars_dir.canonicalize().unwrap_or(paths.avatars_dir.clone());
+            
+            if !canonical.starts_with(&avatars_canonical) {
+                tracing::warn!("Blocked path traversal attempt in avatar export: {:?}", path);
+                None
+            } else if full.exists() {
                 let data = std::fs::read(full)?;
                 Some(format!("data:image/png;base64,{}", base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &data)))
             } else { None }

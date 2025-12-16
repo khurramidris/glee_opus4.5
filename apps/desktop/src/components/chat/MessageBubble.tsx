@@ -1,6 +1,5 @@
 import { useState, memo } from 'react';
 import type { Message } from '@/types';
-
 import { cn } from '@/lib/utils';
 import { BranchNavigator } from './BranchNavigator';
 import { MessageActions } from './MessageActions';
@@ -27,7 +26,7 @@ function formatTime(date: Date | string | number): string {
     return '';
   }
 
-  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true }).toUpperCase();
+  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
 }
 
 export const MessageBubble = memo(function MessageBubble({
@@ -58,28 +57,28 @@ export const MessageBubble = memo(function MessageBubble({
 
   if (isSystem) {
     return (
-      <div className="flex justify-center py-2">
-        <p className="text-sm text-surface-500 italic">{message.content}</p>
+      <div className="flex justify-center py-3">
+        <p className="text-sm text-white/40 italic px-4 py-1.5 bg-white/5 rounded-full">
+          {message.content}
+        </p>
       </div>
     );
   }
 
-  const authorLabel = isUser ? 'User' : (message.authorName || 'Character');
+  const authorLabel = isUser ? 'You' : (message.authorName || 'Character');
 
   return (
     <div
       className={cn(
-        'group flex gap-3 py-2 w-full',
+        'group flex gap-3 py-3 w-full animate-fade-in',
         isUser ? 'flex-row-reverse' : 'flex-row'
       )}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
-
-
       <div
         className={cn(
-          'flex flex-col max-w-[70%]',
+          'flex flex-col max-w-[75%]',
           isUser ? 'items-end' : 'items-start'
         )}
       >
@@ -92,19 +91,19 @@ export const MessageBubble = memo(function MessageBubble({
           />
         )}
 
-        {/* Message content with label */}
+        {/* Message content */}
         <div
           className={cn(
-            'relative shadow-sm transition-all duration-200',
+            'relative transition-all duration-200',
             isUser
-              ? 'px-6 py-4 bg-primary-600 text-white rounded-2xl rounded-tr-sm'
+              ? 'bubble-user'
               : 'bubble-ai'
           )}
         >
           {/* Author Label */}
           <div className={cn(
-            'text-xs font-semibold mb-1.5',
-            isUser ? 'text-white/80' : 'text-primary-600'
+            'text-xs font-semibold mb-2',
+            isUser ? 'text-white/70' : 'text-primary-400'
           )}>
             {authorLabel}
           </div>
@@ -114,7 +113,10 @@ export const MessageBubble = memo(function MessageBubble({
               <textarea
                 value={editContent}
                 onChange={(e) => setEditContent(e.target.value)}
-                className="w-full bg-transparent border-none outline-none resize-none text-inherit focus:ring-0"
+                className={cn(
+                  "w-full bg-transparent border-none outline-none resize-none text-inherit",
+                  "focus:ring-0 leading-relaxed"
+                )}
                 rows={Math.max(3, Math.ceil(editContent.length / 40))}
                 autoFocus
                 onKeyDown={(e) => {
@@ -126,29 +128,31 @@ export const MessageBubble = memo(function MessageBubble({
                   }
                 }}
               />
-              <div className="flex justify-end gap-2 mt-2">
+              <div className="flex justify-end gap-2 mt-3 pt-2 border-t border-white/10">
                 <button
                   onClick={handleCancelEdit}
-                  className="text-xs opacity-70 hover:opacity-100 font-medium"
+                  className="text-xs opacity-70 hover:opacity-100 font-medium px-2 py-1"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSaveEdit}
-                  className="text-xs font-bold hover:opacity-90 bg-white/20 px-2 py-1 rounded"
+                  className="text-xs font-semibold bg-white/20 hover:bg-white/30 px-3 py-1 rounded-md transition-colors"
                 >
                   Save
                 </button>
               </div>
             </div>
           ) : (
-            <p className="whitespace-pre-wrap break-words leading-loose text-sm">{message.content}</p>
+            <p className="whitespace-pre-wrap break-words leading-relaxed text-[15px]">
+              {message.content}
+            </p>
           )}
         </div>
 
         {/* Timestamp */}
         <span className={cn(
-          'text-[10px] font-medium tracking-wide text-surface-400 mt-1.5 uppercase',
+          'text-[11px] font-medium text-white/30 mt-2',
           isUser ? 'mr-1' : 'ml-1'
         )}>
           {formatTime(message.createdAt)}

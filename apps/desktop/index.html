@@ -29,10 +29,10 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      /* Vibrant Neon Background matching main app */
-      background: radial-gradient(circle at 0% 0%, #4c1d95 0%, #312e81 30%, #1e1b4b 70%, #0f172a 100%);
-      font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
-      transition: opacity 0.5s ease-out;
+      /* Refined purple gradient background */
+      background: radial-gradient(ellipse at 0% 0%, #581c87 0%, #3b0764 20%, #1e1b4b 50%, #0f172a 100%);
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      transition: opacity 0.4s ease-out;
     }
 
     #initial-splash.hidden {
@@ -40,28 +40,50 @@
       pointer-events: none;
     }
 
-    #initial-splash .logo {
-      font-size: 4.5rem;
+    /* Logo mark */
+    #initial-splash .logo-mark {
+      width: 64px;
+      height: 64px;
+      background: linear-gradient(135deg, #a855f7 0%, #9333ea 100%);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+      box-shadow: 0 20px 40px rgba(168, 85, 247, 0.3);
+    }
+
+    #initial-splash .logo-mark span {
+      font-family: 'Space Grotesk', system-ui, sans-serif;
+      font-size: 2rem;
       font-weight: 700;
-      background: linear-gradient(90deg, #a78bfa 0%, #c4b5fd 50%, #a78bfa 100%);
-      /* Lighter Purple for dark bg */
+      color: white;
+    }
+
+    #initial-splash .logo-text {
+      font-family: 'Space Grotesk', system-ui, sans-serif;
+      font-size: 3rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #d8b4fe 0%, #c084fc 50%, #d8b4fe 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
       margin-bottom: 0.5rem;
+      letter-spacing: -0.025em;
     }
 
     #initial-splash .tagline {
-      color: rgba(255, 255, 255, 0.6);
-      font-size: 1rem;
-      letter-spacing: 0.1em;
+      color: rgba(255, 255, 255, 0.4);
+      font-size: 0.875rem;
+      font-weight: 500;
+      letter-spacing: 0.15em;
       text-transform: uppercase;
       margin-bottom: 3rem;
     }
 
     #initial-splash .progress-container {
-      width: 20rem;
-      height: 0.5rem;
+      width: 18rem;
+      height: 6px;
       background: rgba(255, 255, 255, 0.1);
       border-radius: 9999px;
       overflow: hidden;
@@ -70,9 +92,10 @@
     #initial-splash .progress-bar {
       height: 100%;
       width: 30%;
-      background: linear-gradient(90deg, #8B5CF6 0%, #c4b5fd 50%, #8B5CF6 100%);
+      background: linear-gradient(90deg, #a855f7 0%, #c084fc 50%, #a855f7 100%);
       border-radius: 9999px;
       animation: loading 1.5s ease-in-out infinite;
+      box-shadow: 0 0 20px rgba(168, 85, 247, 0.4);
     }
 
     @keyframes loading {
@@ -88,20 +111,8 @@
     #initial-splash .status {
       color: rgba(255, 255, 255, 0.5);
       font-size: 0.875rem;
+      font-weight: 500;
       margin-top: 1.5rem;
-      animation: pulse 1.5s ease-in-out infinite;
-    }
-
-    @keyframes pulse {
-
-      0%,
-      100% {
-        opacity: 1;
-      }
-
-      50% {
-        opacity: 0.5;
-      }
     }
   </style>
 </head>
@@ -109,7 +120,10 @@
 <body>
   <!-- Initial splash screen - visible immediately, hidden when React takes over -->
   <div id="initial-splash">
-    <div class="logo">Glee</div>
+    <div class="logo-mark">
+      <span>G</span>
+    </div>
+    <div class="logo-text">Glee</div>
     <div class="tagline">AI Character Chat</div>
     <div class="progress-container">
       <div class="progress-bar"></div>
@@ -126,7 +140,7 @@
         const splash = document.getElementById('initial-splash');
         if (splash) {
           splash.classList.add('hidden');
-          setTimeout(() => splash.remove(), 500);
+          setTimeout(() => splash.remove(), 400);
         }
       }, 100);
     });

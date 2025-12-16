@@ -8,13 +8,14 @@ import { ChatInput } from './ChatInput';
 import { CharacterInfoPanel } from './CharacterInfoPanel';
 import { ChatErrorBoundary } from './ChatErrorBoundary';
 import { Spinner } from '@/components/ui/Spinner';
+import { cn } from '@/lib/utils';
 
 export function ChatView() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const { isLoaded: isModelLoaded, status: modelStatus, startSidecar, isLoading: isModelLoading } = useModelStatus();
 
   if (!conversationId) {
-    return <div className="p-8 text-center text-surface-500">No conversation selected</div>;
+    return <div className="p-8 text-center text-white/50">No conversation selected</div>;
   }
 
   const {
@@ -45,14 +46,20 @@ export function ChatView() {
   const memoizedMessages = useMemo(() => messages, [messages]);
 
   if (isLoading && !conversation) {
-    return <div className="h-full flex items-center justify-center"><Spinner size="lg" /></div>;
+    return (
+      <div className="h-full flex items-center justify-center">
+        <Spinner size="lg" />
+      </div>
+    );
   }
 
   if (!conversation && !isLoading) {
     return (
       <div className="h-full flex flex-col items-center justify-center p-8">
-        <p className="text-red-500 mb-4">{error || 'Conversation not found'}</p>
-        <a href="/characters" className="text-primary-600 hover:underline">Back to Characters</a>
+        <p className="text-red-400 mb-4">{error || 'Conversation not found'}</p>
+        <a href="/characters" className="text-primary-400 hover:text-primary-300 hover:underline transition-colors">
+          Back to Characters
+        </a>
       </div>
     );
   }
@@ -66,37 +73,50 @@ export function ChatView() {
   };
 
   return (
-    <div className="flex h-full gap-1.5">
-      <div className="flex flex-col flex-1 min-w-0 h-full panel rounded-2xl overflow-hidden shadow-2xl relative">
-        <div className="absolute inset-0 bg-transparent z-0" /> {/* Overlay for any extra effects */}
-        <div className="relative z-10 flex flex-col h-full">
+    <div className="flex h-full gap-2">
+      {/* Main Chat Panel */}
+      <div className="flex flex-col flex-1 min-w-0 h-full panel rounded-2xl overflow-hidden">
+        <div className="relative flex flex-col h-full">
           {conversation && <ChatHeader conversation={conversation} />}
 
+          {/* Model Warning Banner */}
           {!isModelLoaded && (
-            <div className="mx-4 mt-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-                <span className="text-sm text-amber-800">
+            <div className={cn(
+              "mx-4 mt-3 px-4 py-3 rounded-xl flex items-center justify-between gap-4",
+              "bg-amber-500/10 border border-amber-500/20"
+            )}>
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                  <svg className="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <span className="text-sm text-amber-200 truncate">
                   {modelStatus === 'not_found'
-                    ? 'No AI model found. Please download or configure a model in Settings.'
-                    : 'AI model not loaded. Click "Start Model" to begin chatting.'}
+                    ? 'No AI model found. Configure in Settings.'
+                    : 'AI model not loaded. Start the model to chat.'}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-shrink-0">
                 {modelStatus !== 'not_found' && (
                   <button
                     onClick={handleStartModel}
                     disabled={isModelLoading}
-                    className="px-3 py-1.5 text-sm bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50"
+                    className={cn(
+                      "px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-150",
+                      "bg-amber-500 text-white hover:bg-amber-400",
+                      "disabled:opacity-50 disabled:cursor-not-allowed"
+                    )}
                   >
                     {isModelLoading ? 'Starting...' : 'Start Model'}
                   </button>
                 )}
                 <Link
                   to="/settings"
-                  className="px-3 py-1.5 text-sm bg-surface-200 text-surface-700 rounded-lg hover:bg-surface-300"
+                  className={cn(
+                    "px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-150",
+                    "bg-white/10 text-white/80 hover:bg-white/15 hover:text-white"
+                  )}
                 >
                   Settings
                 </Link>
@@ -104,6 +124,7 @@ export function ChatView() {
             </div>
           )}
 
+          {/* Messages */}
           <div className="flex-1 overflow-hidden relative">
             <ChatErrorBoundary conversationId={conversationId} onRetry={handleRetryChat}>
               <MessageList
@@ -120,18 +141,20 @@ export function ChatView() {
             </ChatErrorBoundary>
           </div>
 
+          {/* Input */}
           <div className="pb-2">
             <ChatInput
               onSend={sendMessage}
               onStop={stopGeneration}
               disabled={!isModelLoaded}
               isGenerating={isGenerating}
-              placeholder={isModelLoaded ? `Message ${currentCharacterName}...` : 'Model not loaded - configure in Settings'}
+              placeholder={isModelLoaded ? `Message ${currentCharacterName}...` : 'Model not loaded'}
             />
           </div>
         </div>
       </div>
 
+      {/* Character Info Panel */}
       {currentCharacter && (
         <CharacterInfoPanel character={currentCharacter} />
       )}

@@ -4,7 +4,7 @@ use tauri::{AppHandle, Emitter};
 
 use crate::entities::*;
 use crate::repositories::*;
-use crate::services::{MemoryService, LongTermMemoryService, estimate_tokens};
+use crate::services::{MemoryService, LongTermMemoryService, SummaryService, estimate_tokens};
 use crate::sidecar::{self, GenerationEvent};
 use crate::state::{AppState, QueueMessage};
 
@@ -58,6 +58,19 @@ async fn process_queue(state: &AppState, app_handle: &AppHandle) {
         None => return, // No model loaded, skip
     };
     
+    // WATCHDOG: Verify sidecar is still responsive before processing
+    if !sidecar::health_check(&sidecar).await {
+        tracing::warn!("Sidecar health check failed - marking as unavailable");
+        state.set_sidecar(None);
+        // Emit event to frontend so user knows model stopped
+        let _ = app_handle.emit("model:status", serde_json::json!({
+            "status": "error",
+            "modelLoaded": false,
+            "message": "AI model stopped unexpectedly. Please restart from Settings."
+        }));
+        return;
+    }
+    
     // Don't start new generation if one is already running
     if state.is_generating() {
         return;
@@ -105,7 +118,12 @@ async fn process_queue(state: &AppState, app_handle: &AppHandle) {
         }
     };
     
-    let context = match MemoryService::build_context(&state.db, &task.conversation_id, settings.generation.context_size) {
+    let context = match MemoryService::build_context_async(
+        &state.db,
+        &sidecar,
+        &task.conversation_id,
+        settings.generation.context_size
+    ).await {
         Ok(c) => c,
         Err(e) => {
             fail_task(state, &task.id, &format!("Failed to build context: {}", e));
@@ -200,33 +218,53 @@ async fn process_queue(state: &AppState, app_handle: &AppHandle) {
                 });
             }
             
-            // Extract memories from USER message (parent)
-            if let Some(parent_id) = &task.parent_message_id {
-                let db_clone = state.db.clone();
-                let sidecar_clone = sidecar.clone();
-                let parent_id_clone = parent_id.clone();
-                let character_id_clone = character.id.clone();
-                let conversation_id_clone = task.conversation_id.clone();
-                
-                tokio::spawn(async move {
-                    // Fetch user message content
-                    if let Ok(user_msg) = MessageRepo::find_by_id(&db_clone, &parent_id_clone) {
-                         if user_msg.author_type == AuthorType::User {
-                             tracing::info!("Starting memory extraction for message {}", user_msg.id);
-                             if let Err(e) = LongTermMemoryService::process_message(
-                                 &db_clone,
-                                 &sidecar_clone,
-                                 &user_msg.content,
-                                 &character_id_clone,
-                                 &conversation_id_clone,
-                                 &user_msg.id
-                             ).await {
-                                 tracing::warn!("Memory extraction failed: {}", e);
-                             }
-                         }
-                    }
-                });
-            }
+            // Trigger summarization if needed (non-blocking)
+            let db_for_summary = state.db.clone();
+            let sidecar_for_summary = sidecar.clone();
+            let conv_id_for_summary = task.conversation_id.clone();
+            tokio::spawn(async move {
+                if let Err(e) = SummaryService::maybe_summarize(
+                    &db_for_summary,
+                    &sidecar_for_summary,
+                    &conv_id_for_summary,
+                    20,   // Summarize every 20 messages
+                    4000, // Or every 4000 tokens
+                ).await {
+                    tracing::warn!("Summarization failed: {}", e);
+                }
+            });
+
+            // Extract memories from BOTH user (parent) and character (current) messages
+            let messages_to_process = vec![
+                task.parent_message_id.clone(),
+                Some(message_id.clone()),
+            ];
+            
+            for msg_id_opt in messages_to_process {
+                if let Some(msg_id) = msg_id_opt {
+                     let db_clone = state.db.clone();
+                     let sidecar_clone = sidecar.clone();
+                     let msg_id_clone = msg_id.clone();
+                     let character_id_clone = character.id.clone();
+                     let conversation_id_clone = task.conversation_id.clone();
+                     
+                     tokio::spawn(async move {
+                        if let Ok(msg) = MessageRepo::find_by_id(&db_clone, &msg_id_clone) {
+                            tracing::info!("Starting memory extraction for message {}", msg.id);
+                            if let Err(e) = LongTermMemoryService::process_message(
+                                &db_clone,
+                                &sidecar_clone,
+                                &msg.content,
+                                &character_id_clone,
+                                &conversation_id_clone,
+                                &msg.id
+                            ).await {
+                                tracing::warn!("Memory extraction failed: {}", e);
+                            }
+                        }
+                     });
+                 }
+             }
             
             tracing::info!("Task {} completed successfully", task.id);
         }

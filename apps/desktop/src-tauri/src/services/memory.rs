@@ -8,6 +8,8 @@ use crate::entities::{new_id, now_timestamp};
 use crate::error::AppResult;
 use crate::sidecar::SidecarHandle;
 use crate::services::embeddings::EmbeddingService;
+use crate::repositories::MessageRepo;
+use crate::entities::AuthorType;
 use serde::{Deserialize, Serialize};
 
 
@@ -162,6 +164,40 @@ impl MemoryService {
         Ok(results)
     }
     
+    /// Retrieve memories with recency boost applied to similarity scores
+    /// Falls back to recency-based retrieval if no embeddings available
+    pub fn retrieve_relevant_sync_with_recency(
+        db: &Database,
+        character_id: &str,
+        query_embedding: Option<&[f32]>,
+        limit: usize,
+        min_similarity: f32,
+    ) -> AppResult<Vec<(MemoryEntry, f32)>> {
+        let now = now_timestamp();
+        let day_seconds = 86400i64;
+        
+        let mut results = Self::retrieve_relevant_sync(
+            db, character_id, query_embedding, limit * 2, min_similarity
+        )?;
+        
+        // Apply recency boost to scores
+        for (memory, score) in &mut results {
+            let age_days = (now - memory.created_at) / day_seconds;
+            // Decay: reduce score by 5% per day, minimum 0.5x
+            let recency_factor = (1.0 - 0.05 * age_days as f32).max(0.5);
+            // Blend importance with recency
+            let importance_factor = memory.importance;
+            // Final score = semantic * 0.5 + importance * 0.3 + recency * 0.2
+            *score = *score * 0.5 + importance_factor * 0.3 + recency_factor * 0.2;
+        }
+        
+        // Re-sort by adjusted score
+        results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        results.truncate(limit);
+        
+        Ok(results)
+    }
+    
     /// Retrieve relevant memories synchronously (for context building)
     /// Falls back to recency-based retrieval if no embeddings available
     pub fn retrieve_relevant_sync(
@@ -232,6 +268,15 @@ impl MemoryService {
         Ok(())
     }
     
+    /// Update memory content (for contradiction resolution)
+    pub fn update(db: &Database, id: &str, new_content: &str) -> AppResult<()> {
+        db.execute(
+            "UPDATE memory_entries SET content = ?1 WHERE id = ?2",
+            rusqlite::params![new_content, id],
+        )?;
+        Ok(())
+    }
+    
     /// Count memories for a character
     pub fn count_for_character(db: &Database, character_id: &str) -> AppResult<i32> {
         db.query_one(
@@ -240,8 +285,51 @@ impl MemoryService {
             |row| row.get(0),
         )
     }
+}
 
-    /// Extract and store important facts from a message
+/// Helper function to detect contradicting facts
+/// Returns true if two facts appear to be about the same subject with different values
+/// e.g., "User is 25 years old" vs "User is 30 years old"
+fn is_contradicting_fact(existing: &str, new: &str) -> bool {
+    // Quick check: both must be about "user"
+    if !existing.starts_with("user") || !new.starts_with("user") {
+        return false;
+    }
+    
+    // Check for age contradictions: "user is X years old" patterns
+    let age_pattern_words = ["years old", "year old", "aged"];
+    let existing_has_age = age_pattern_words.iter().any(|p| existing.contains(p));
+    let new_has_age = age_pattern_words.iter().any(|p| new.contains(p));
+    if existing_has_age && new_has_age && existing != new {
+        return true;
+    }
+    
+    // Check for "user's name is X" contradictions
+    if existing.contains("name is") && new.contains("name is") && existing != new {
+        return true;
+    }
+    
+    // Check for "user is from X" / location contradictions
+    let location_words = ["is from", "lives in", "located in"];
+    let existing_has_loc = location_words.iter().any(|p| existing.contains(p));
+    let new_has_loc = location_words.iter().any(|p| new.contains(p));
+    if existing_has_loc && new_has_loc && existing != new {
+        return true;
+    }
+    
+    // Check for job/profession contradictions
+    let job_words = ["works as", "job is", "profession is", "works at"];
+    let existing_has_job = job_words.iter().any(|p| existing.contains(p));
+    let new_has_job = job_words.iter().any(|p| new.contains(p));
+    if existing_has_job && new_has_job && existing != new {
+        return true;
+    }
+    
+    false
+}
+
+impl MemoryService {
+    /// Extract and store important facts from a message with robust parsing and deduplication
     pub async fn process_message(
         db: &Database,
         sidecar: &SidecarHandle,
@@ -250,16 +338,33 @@ impl MemoryService {
         conversation_id: &str,
         source_message_id: &str,
     ) -> AppResult<()> {
-        // 1. Check if message is worth analyzing (length > 10 chars)
-        if content.trim().len() < 10 {
+        // Skip very short messages
+        if content.trim().len() < 15 {
             return Ok(());
         }
 
-        // 2. Prompt LLM to extract facts
-        // tailored for Phi-3 / small models
+        // IMPROVED: Comprehensive extraction prompt that captures more fact types
         let prompt = format!(
-            "Extract new facts about the user from this message. Result must be a JSON list of strings. If none, return [].\nMessage: \"{}\"\nFacts:",
-            content
+            r#"Extract important information about the user from this message. Include:
+- Personal facts (name, age, job, location)
+- Preferences and interests
+- Emotional state or mood indicators
+- Relationship dynamics
+
+Return ONLY a JSON array of strings. Each item should be a complete sentence.
+If nothing notable, return [].
+
+Examples:
+- "My name is Alex and I'm 25" -> ["User's name is Alex", "User is 25 years old"]
+- "I love hiking on weekends" -> ["User enjoys hiking", "User is active on weekends"]
+- "sigh... rough day at work" -> ["User seems stressed about work"]
+- "Thanks bro, you're awesome" -> ["User uses casual friendly language"]
+- "How's the weather?" -> []
+
+Message: "{}"
+
+JSON array:"#,
+            content.replace('"', "'")
         );
 
         let messages = vec![serde_json::json!({
@@ -267,7 +372,6 @@ impl MemoryService {
             "content": prompt
         })];
 
-        // Use a short generation config
         let response = crate::sidecar::generate_text_oneshot(
             sidecar,
             messages,
@@ -275,17 +379,8 @@ impl MemoryService {
             256, // max tokens
         ).await?;
 
-        // 3. Parse JSON result
-        let facts: Vec<String> = match serde_json::from_str(&response) {
-            Ok(f) => f,
-            Err(_) => {
-                // Fallback: try to extract lines if JSON fails
-                response.lines()
-                    .filter(|l| l.trim().starts_with("- ") || l.trim().starts_with("* "))
-                    .map(|l| l.trim().trim_start_matches(['-', '*']).trim().to_string())
-                    .collect()
-            }
-        };
+        // Use robust JSON extraction
+        let facts: Vec<String> = extract_json_array(&response);
 
         if facts.is_empty() {
             return Ok(());
@@ -293,21 +388,80 @@ impl MemoryService {
 
         tracing::info!("Extracted {} facts from message {}", facts.len(), source_message_id);
 
-        // 4. Store each fact as a memory
-        for fact in facts {
+        // Get existing memories for deduplication and contradiction check
+        let existing = Self::get_for_character(db, character_id, 100)?;
+
+        'facts: for fact in facts {
+            let fact_trimmed = fact.trim();
+            if fact_trimmed.is_empty() || fact_trimmed.len() < 5 {
+                continue;
+            }
+            
+            let new_lower = fact_trimmed.to_lowercase();
+            
+            // Check for duplicates and contradictions
+            for existing_mem in &existing {
+                let existing_lower = existing_mem.content.to_lowercase();
+                
+                // Exact or near-duplicate check
+                if existing_lower.contains(&new_lower) || new_lower.contains(&existing_lower) {
+                    tracing::debug!("Skipping duplicate fact: {}", fact_trimmed);
+                    continue 'facts;
+                }
+                
+                // CONTRADICTION DETECTION: Check if both are assertions about the same subject
+                // e.g., "User is 25 years old" vs "User is 30 years old"
+                // Heuristic: same sentence structure with different value
+                if is_contradicting_fact(&existing_lower, &new_lower) {
+                    tracing::info!("Updating contradictory memory: '{}' -> '{}'", existing_mem.content, fact_trimmed);
+                    // Update existing memory instead of creating duplicate
+                    if let Err(e) = Self::update(db, &existing_mem.id, fact_trimmed) {
+                        tracing::warn!("Failed to update contradicting memory: {}", e);
+                    }
+                    continue 'facts;
+                }
+            }
+            
+            // Store with embedding
             let _ = Self::create_with_embedding(
                 db,
                 sidecar,
                 character_id,
-                &fact,
+                fact_trimmed,
                 Some(conversation_id),
-                0.5, // default importance
+                0.5,
                 vec![source_message_id.to_string()],
             ).await;
         }
 
         Ok(())
     }
+}
+
+/// Helper to extract JSON array from LLM response with fallback parsing
+fn extract_json_array(text: &str) -> Vec<String> {
+    // Try direct parse first
+    if let Ok(arr) = serde_json::from_str::<Vec<String>>(text.trim()) {
+        return arr;
+    }
+    
+    // Try to find JSON array in response
+    if let Some(start) = text.find('[') {
+        if let Some(end) = text.rfind(']') {
+            if start < end {
+                if let Ok(arr) = serde_json::from_str::<Vec<String>>(&text[start..=end]) {
+                    return arr;
+                }
+            }
+        }
+    }
+    
+    // Fallback: extract bullet points
+    text.lines()
+        .filter(|l| l.trim().starts_with("- ") || l.trim().starts_with("* "))
+        .map(|l| l.trim().trim_start_matches(['-', '*']).trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
 }
 
 // ============================================
@@ -414,5 +568,120 @@ impl SummaryService {
             rusqlite::params![conversation_id],
         )?;
         Ok(())
+    }
+
+    /// Check if summarization is needed and create summary if so
+    pub async fn maybe_summarize(
+        db: &Database,
+        sidecar: &SidecarHandle,
+        conversation_id: &str,
+        message_threshold: i32,
+        token_threshold: i32,
+    ) -> AppResult<Option<ConversationSummary>> {
+        let messages = MessageRepo::find_active_branch(db, conversation_id)?;
+        
+        // Get last summary to find unsummarized messages
+        let existing_summaries = Self::get_for_conversation(db, conversation_id, 10000)?;
+        let last_summarized_id = existing_summaries.first()
+            .and_then(|s| s.message_range_end.clone());
+        
+        // Find messages after last summary
+        let unsummarized: Vec<_> = if let Some(ref last_id) = last_summarized_id {
+            let mut found = false;
+            messages.iter().filter(|m| {
+                if m.id == *last_id { found = true; return false; }
+                found
+            }).collect()
+        } else {
+            messages.iter().collect()
+        };
+        
+        // Calculate token count
+        let total_tokens: i32 = unsummarized.iter().map(|m| m.token_count).sum();
+        
+        // Check thresholds
+        if unsummarized.len() < message_threshold as usize && total_tokens < token_threshold {
+            return Ok(None);  // Not enough to summarize
+        }
+        
+        // Leave last 5 messages for recent context, summarize the rest
+        if unsummarized.len() <= 5 {
+            return Ok(None);
+        }
+        let to_summarize = &unsummarized[..unsummarized.len() - 5];
+        
+        // Build prompt for summarization
+        let messages_text = to_summarize.iter()
+            .map(|m| format!("{}: {}", 
+                if m.author_type == AuthorType::User { "User" } else { "Character" },
+                m.content
+            ))
+            .collect::<Vec<_>>()
+            .join("\n");
+        
+        let prompt = format!(
+            "Summarize this conversation in 2-3 sentences, focusing on key topics and any important facts learned about the user:\n\n{}\n\nSummary:",
+            messages_text
+        );
+        
+        let llm_messages = vec![serde_json::json!({
+            "role": "user",
+            "content": prompt
+        })];
+        
+        let summary_text = crate::sidecar::generate_text_oneshot(
+            sidecar, llm_messages, 0.3, 200
+        ).await?;
+        
+        // Store summary
+        let first_id = to_summarize.first().map(|m| m.id.as_str());
+        let last_id = to_summarize.last().map(|m| m.id.as_str());
+        let range = first_id.zip(last_id);
+        
+        let summary = Self::create(
+            db,
+            conversation_id,
+            &summary_text,
+            range,
+            to_summarize.len() as i32,
+        )?;
+        
+        tracing::info!("Created summary for {} messages", to_summarize.len());
+        Ok(Some(summary))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_extract_json_array_direct() {
+        let input = r#"["User likes cats", "User is from NYC"]"#;
+        let result = extract_json_array(input);
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0], "User likes cats");
+    }
+    
+    #[test]
+    fn test_extract_json_array_embedded() {
+        let input = r#"Here are the facts: ["User likes cats"] and more text"#;
+        let result = extract_json_array(input);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], "User likes cats");
+    }
+    
+    #[test]
+    fn test_extract_json_array_fallback() {
+        let input = "- User likes cats\n- User is from NYC";
+        let result = extract_json_array(input);
+        assert_eq!(result.len(), 2);
+    }
+    
+    #[test]
+    fn test_extract_json_array_empty() {
+        let input = "No facts found.";
+        let result = extract_json_array(input);
+        assert_eq!(result.len(), 0);
     }
 }

@@ -126,7 +126,15 @@ impl AppState {
         self.try_start_generation(message_id.clone(), conversation_id.clone())
             .unwrap_or_else(|| {
                 tracing::warn!("start_generation called while generation already in progress");
-                self.generating.read().as_ref().unwrap().cancel_token.clone()
+                // SAFETY: Use safe fallback - return existing token or create orphan
+                // This prevents panic if generation finishes between try_start and this read
+                self.generating.read()
+                    .as_ref()
+                    .map(|s| s.cancel_token.clone())
+                    .unwrap_or_else(|| {
+                        tracing::warn!("Generation state cleared during start_generation - creating orphan token");
+                        CancellationToken::new()
+                    })
             })
     }
     

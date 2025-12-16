@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
+import { cn } from '@/lib/utils';
 
 export function Header() {
   const location = useLocation();
@@ -32,19 +33,32 @@ export function Header() {
     location.pathname !== '/settings';
 
   return (
-    <header className="h-14 flex items-center justify-between px-6 border-b border-white/5 bg-transparent backdrop-blur-sm transition-all duration-200">
-      <div className="flex items-center gap-4">
+    <header className={cn(
+      "h-14 flex items-center justify-between px-6",
+      "border-b border-white/5",
+      "bg-transparent"
+    )}>
+      <div className="flex items-center gap-3">
         {showBackButton && (
           <button
             onClick={() => navigate(-1)}
-            className="p-2 text-surface-500 hover:text-surface-700 hover:bg-surface-100 rounded-lg transition-colors"
+            className={cn(
+              "p-2 rounded-lg transition-all duration-150",
+              "text-surface-500 hover:text-surface-800",
+              "hover:bg-surface-100/80",
+              "active:scale-95"
+            )}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
         )}
-        {title && <h1 className="text-lg font-semibold text-surface-900">{title}</h1>}
+        {title && (
+          <h1 className="text-lg font-semibold text-surface-900 font-display tracking-tight">
+            {title}
+          </h1>
+        )}
       </div>
 
       <div className="flex items-center gap-2">

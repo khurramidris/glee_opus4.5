@@ -4,7 +4,7 @@ use std::sync::Arc;
 use tokio::process::{Child, Command};
 use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 use futures::StreamExt;
 
 #[cfg(target_os = "windows")]
@@ -201,7 +201,13 @@ pub async fn start_sidecar(
             use tokio::io::{AsyncBufReadExt, BufReader};
             let mut reader = BufReader::new(stderr).lines();
             while let Ok(Some(line)) = reader.next_line().await {
-                if line.contains("error") || line.contains("Error") || line.contains("ERROR") {
+                // Detect critical GPU/CPU errors for user feedback
+                if line.contains("out of memory") || line.contains("CUDA error") || 
+                   line.contains("VRAM") || line.contains("cudaMalloc") {
+                    tracing::error!("[llama-server] GPU MEMORY EXHAUSTED: {}. Consider reducing gpu_layers in Settings.", line);
+                } else if line.contains("illegal instruction") || line.contains("SIGILL") {
+                    tracing::error!("[llama-server] CPU INCOMPATIBLE: {}. This CPU may not support required instructions. Try CPU-only build.", line);
+                } else if line.contains("error") || line.contains("Error") || line.contains("ERROR") {
                     tracing::error!("[llama-server] {}", line);
                 } else if line.contains("warn") || line.contains("WARN") {
                     tracing::warn!("[llama-server] {}", line);
@@ -224,6 +230,14 @@ pub async fn start_sidecar(
     for attempt in 1..=max_attempts {
         if attempt % 10 == 0 {
             tracing::info!("Waiting for sidecar to be ready... ({}/{})", attempt, max_attempts);
+            // Emit loading progress event for frontend
+            let progress = (attempt as f32 / max_attempts as f32 * 100.0) as i32;
+            let _ = app_handle.emit("model:loading", serde_json::json!({
+                "progress": progress,
+                "message": format!("Loading model... ({}s)", attempt),
+                "attempt": attempt,
+                "maxAttempts": max_attempts,
+            }));
         }
         
         {
@@ -479,7 +493,12 @@ pub async fn generate_stream(
                             // Process buffer for SSE messages (double newline separated)
                             while let Some(pos) = buffer.windows(2).position(|w| w == b"\n\n") {
                                 let event_bytes = buffer.drain(..pos + 2).collect::<Vec<u8>>();
-                                let event_str = String::from_utf8_lossy(&event_bytes[..event_bytes.len() - 2]); // Exclude last \n\n
+                                // SAFETY: Check bounds before slicing to prevent underflow
+                                let event_str = if event_bytes.len() >= 2 {
+                                    String::from_utf8_lossy(&event_bytes[..event_bytes.len() - 2])
+                                } else {
+                                    String::from_utf8_lossy(&event_bytes)
+                                };
                                 
                                 for line in event_str.lines() {
                                     if let Some(data) = line.strip_prefix("data: ") {
@@ -576,7 +595,7 @@ pub async fn generate_text_oneshot(
     let response = client
         .post(&url)
         .json(&body)
-        .timeout(std::time::Duration::from_secs(60))
+        .timeout(std::time::Duration::from_secs(180)) // Increased from 60s for slow operations
         .send()
         .await
         .map_err(|e| AppError::Llm(format!("Request failed: {}", e)))?;

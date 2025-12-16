@@ -30,34 +30,43 @@ pub fn run_migrations(db: &Database) -> AppResult<()> {
         |row| row.get(0),
     ).unwrap_or_default();
     
-    // Apply migration 1 if not applied
+    // Apply migration 1 if not applied - wrapped in transaction for atomicity
     if !applied.contains(&1) {
         tracing::info!("Applying migration 001_initial_schema");
-        db.execute_batch(MIGRATION_001)?;
-        db.execute(
-            "INSERT INTO _migrations (id, name, applied_at) VALUES (1, '001_initial_schema', strftime('%s', 'now'))",
-            [],
-        )?;
+        db.transaction_mut(|conn| {
+            conn.execute_batch(MIGRATION_001)?;
+            conn.execute(
+                "INSERT INTO _migrations (id, name, applied_at) VALUES (1, '001_initial_schema', strftime('%s', 'now'))",
+                [],
+            )?;
+            Ok(())
+        })?;
     }
     
-    // Apply migration 5 if not applied (embeddings and summaries)
+    // Apply migration 5 if not applied (embeddings and summaries) - wrapped in transaction
     if !applied.contains(&5) {
         tracing::info!("Applying migration 005_embeddings");
-        db.execute_batch(MIGRATION_005)?;
-        db.execute(
-            "INSERT INTO _migrations (id, name, applied_at) VALUES (5, '005_embeddings', strftime('%s', 'now'))",
-            [],
-        )?;
+        db.transaction_mut(|conn| {
+            conn.execute_batch(MIGRATION_005)?;
+            conn.execute(
+                "INSERT INTO _migrations (id, name, applied_at) VALUES (5, '005_embeddings', strftime('%s', 'now'))",
+                [],
+            )?;
+            Ok(())
+        })?;
     }
     
-    // Apply migration 6 (Schema fixes)
+    // Apply migration 6 (Schema fixes) - wrapped in transaction
     if !applied.contains(&6) {
         tracing::info!("Applying migration 006_fix_schema");
-        db.execute_batch(MIGRATION_006)?;
-        db.execute(
-            "INSERT INTO _migrations (id, name, applied_at) VALUES (6, '006_fix_schema', strftime('%s', 'now'))",
-            [],
-        )?;
+        db.transaction_mut(|conn| {
+            conn.execute_batch(MIGRATION_006)?;
+            conn.execute(
+                "INSERT INTO _migrations (id, name, applied_at) VALUES (6, '006_fix_schema', strftime('%s', 'now'))",
+                [],
+            )?;
+            Ok(())
+        })?;
     }
     
     Ok(())

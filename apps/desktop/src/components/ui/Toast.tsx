@@ -1,16 +1,23 @@
-import { motion } from 'framer-motion';
+import { useEffect } from 'react';
+import { useUIStore } from '@/stores/uiStore';
 import { cn } from '@/lib/utils';
-import { useUIStore, type ToastMessage } from '@/stores/uiStore';
 
-export function Toast({ id, type, message }: ToastMessage) {
+interface ToastProps {
+  id: string;
+  type: 'success' | 'error' | 'info' | 'warning';
+  message: string;
+}
+
+export function Toast({ id, type, message }: ToastProps) {
   const removeToast = useUIStore((s) => s.removeToast);
 
-  const variants = {
-    success: 'bg-accent-green text-white',
-    error: 'bg-accent-coral text-white',
-    info: 'bg-accent-blue text-white',
-    warning: 'bg-accent-amber text-white',
-  };
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      removeToast(id);
+    }, 4000);
+
+    return () => clearTimeout(timer);
+  }, [id, removeToast]);
 
   const icons = {
     success: (
@@ -35,26 +42,34 @@ export function Toast({ id, type, message }: ToastMessage) {
     ),
   };
 
+  const styles = {
+    success: 'bg-emerald-500/90 border-emerald-400/50 text-white',
+    error: 'bg-danger/90 border-red-400/50 text-white',
+    info: 'bg-blue-500/90 border-blue-400/50 text-white',
+    warning: 'bg-amber-500/90 border-amber-400/50 text-white',
+  };
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 20, scale: 0.95 }}
+    <div
       className={cn(
-        'flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg backdrop-blur-sm min-w-[280px]',
-        variants[type]
+        'flex items-center gap-3 px-4 py-3 rounded-xl',
+        'border backdrop-blur-md shadow-lg',
+        'animate-slide-up',
+        styles[type]
       )}
     >
-      {icons[type]}
-      <p className="flex-1 text-sm font-medium">{message}</p>
+      <div className="flex-shrink-0">
+        {icons[type]}
+      </div>
+      <p className="text-sm font-medium flex-1">{message}</p>
       <button
         onClick={() => removeToast(id)}
-        className="p-1 hover:bg-white/10 rounded transition-colors"
+        className="flex-shrink-0 p-1 rounded-lg hover:bg-white/20 transition-colors"
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
-    </motion.div>
+    </div>
   );
 }

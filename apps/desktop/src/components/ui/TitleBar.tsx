@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { cn } from '@/lib/utils';
 
 export function TitleBar() {
     const [appWindow, setAppWindow] = useState<ReturnType<typeof getCurrentWindow> | null>(null);
@@ -44,47 +45,64 @@ export function TitleBar() {
 
     const close = () => appWindow?.close();
 
+    const WindowButton = ({
+        onClick,
+        title,
+        variant = 'default',
+        children
+    }: {
+        onClick: () => void;
+        title: string;
+        variant?: 'default' | 'close';
+        children: React.ReactNode;
+    }) => (
+        <button
+            onClick={onClick}
+            className={cn(
+                "inline-flex justify-center items-center w-11 h-full",
+                "transition-colors duration-150",
+                "focus:outline-none",
+                variant === 'close'
+                    ? "text-white/50 hover:bg-danger hover:text-white"
+                    : "text-white/50 hover:bg-white/10 hover:text-white"
+            )}
+            title={title}
+        >
+            {children}
+        </button>
+    );
+
     return (
-        <div className="h-8 bg-transparent flex justify-end items-center select-none z-50 flex-shrink-0">
+        <div className="h-9 bg-transparent flex justify-between items-center select-none z-50 flex-shrink-0">
+            {/* Drag region */}
             <div className="flex-1 h-full" data-tauri-drag-region />
 
+            {/* Window controls */}
             <div className="flex h-full flex-shrink-0">
-                <button
-                    onClick={minimize}
-                    className="inline-flex justify-center items-center w-10 h-full text-surface-800/70 hover:bg-surface-800/10 hover:text-surface-800 transition-colors focus:outline-none"
-                    title="Minimize"
-                >
-                    <svg width="10" height="1" viewBox="0 0 10 1" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <WindowButton onClick={minimize} title="Minimize">
+                    <svg width="10" height="1" viewBox="0 0 10 1" fill="none">
                         <path d="M0 0.5H10" stroke="currentColor" strokeWidth="1" />
                     </svg>
-                </button>
+                </WindowButton>
 
-                <button
-                    onClick={toggleMaximize}
-                    className="inline-flex justify-center items-center w-10 h-full text-surface-800/70 hover:bg-surface-800/10 hover:text-surface-800 transition-colors focus:outline-none"
-                    title={isMaximized ? "Restore Down" : "Maximize"}
-                >
+                <WindowButton onClick={toggleMaximize} title={isMaximized ? "Restore Down" : "Maximize"}>
                     {isMaximized ? (
-                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M2.5 2.5H9.5V9.5H2.5V2.5Z" stroke="currentColor" strokeWidth="1" />
-                            <path d="M0.5 0.5H7.5V7.5H0.5V0.5Z" stroke="currentColor" strokeWidth="1" fill="none" />
+                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                            <path d="M2 0H10V8H8V10H0V2H2V0Z" stroke="currentColor" strokeWidth="1" fill="none" />
+                            <path d="M2 2H8V8H2V2Z" stroke="currentColor" strokeWidth="1" fill="none" />
                         </svg>
                     ) : (
-                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
                             <rect x="0.5" y="0.5" width="9" height="9" stroke="currentColor" strokeWidth="1" />
                         </svg>
                     )}
-                </button>
+                </WindowButton>
 
-                <button
-                    onClick={close}
-                    className="inline-flex justify-center items-center w-10 h-full text-surface-800/70 hover:bg-red-500 hover:text-white transition-colors focus:outline-none"
-                    title="Close"
-                >
-                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M1 1L9 9M9 1L1 9" stroke="currentColor" strokeWidth="1" />
+                <WindowButton onClick={close} title="Close" variant="close">
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                        <path d="M1 1L9 9M9 1L1 9" stroke="currentColor" strokeWidth="1.2" />
                     </svg>
-                </button>
+                </WindowButton>
             </div>
         </div>
     );
