@@ -635,30 +635,7 @@ async fn generate_response(
     let mut internal_full_content = String::new();
     let mut filter = TokenFilter::new(character_name);
     
-    // 5-minute (300 second) timeout for the entire generation
-    let generation_timeout = std::time::Duration::from_secs(300);
-    let generation_start = std::time::Instant::now();
-    // Per-token timeout: if no token received within 60 seconds, consider it stalled
-    let token_timeout = std::time::Duration::from_secs(60);
-    
-    loop {
-        let event = tokio::time::timeout(token_timeout, stream.recv()).await;
-        
-        // Check overall generation timeout
-        if generation_start.elapsed() > generation_timeout {
-            tracing::error!("Generation timeout (5 minutes) exceeded. Terminating.");
-            return Err(GenerationError::Error("Generation timeout: response took longer than 5 minutes".to_string()));
-        }
-        
-        let event = match event {
-            Ok(Some(e)) => e,
-            Ok(None) => break, // Stream ended
-            Err(_) => {
-                tracing::error!("Token timeout (60s) - no token received. Generation stalled.");
-                return Err(GenerationError::Error("Generation stalled: no response for 60 seconds".to_string()));
-            }
-        };
-        
+    while let Some(event) = stream.recv().await {
         match event {
             GenerationEvent::Token(token) => {
                 internal_full_content.push_str(&token);
