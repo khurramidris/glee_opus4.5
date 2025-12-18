@@ -393,10 +393,10 @@ impl TokenFilter {
                                              self.buffer = self.buffer[char_pos + char_dialogue.len()..].to_string();
                                              // Assume this is the start of the response
                                              self.in_response_block = true;
-                                        } else if let Some(char_action_pos) = self.buffer.find(&char_action) {
-                                             tracing::info!("Found '{}' marker at {}. Stripping up to there.", char_action, char_action_pos);
-                                             self.buffer = self.buffer[char_action_pos + char_dialogue.len()..].to_string(); 
-                                             self.in_response_block = true;
+                                         } else if let Some(char_action_pos) = self.buffer.find(&char_action) {
+                                              tracing::info!("Found '{}' marker at {}. Stripping up to there.", char_action, char_action_pos);
+                                              self.buffer = self.buffer[char_action_pos + char_action.len()..].to_string(); 
+                                              self.in_response_block = true;
                                         } else {
                                             // Fallback: If buffer gets too long with leakage but no clear start, 
                                             // we might just clear it if we are sure it's garbage.
