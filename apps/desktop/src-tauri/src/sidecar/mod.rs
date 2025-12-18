@@ -503,7 +503,6 @@ pub async fn generate_stream(
     let response = client
         .post(&url)
         .json(&body)
-        .timeout(std::time::Duration::from_secs(300))
         .send()
         .await
         .map_err(|e| AppError::Llm(format!("Request failed: {}", e)))?;
