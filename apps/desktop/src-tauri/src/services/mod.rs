@@ -80,6 +80,7 @@ impl CharacterService {
                 example_dialogues: card.data.mes_example,
                 avatar_path,
                 tags: card.data.tags.into_iter().take(20).collect(),
+                ..Default::default()
             };
             return CharacterRepo::create(db, &input);
         }
@@ -95,6 +96,7 @@ impl CharacterService {
                 example_dialogues: card.mes_example,
                 avatar_path,
                 tags: vec![],
+                ..Default::default()
             };
             return CharacterRepo::create(db, &input);
         }
@@ -1103,6 +1105,7 @@ impl ExportService {
             example_dialogues: exported.character.example_dialogues,
             avatar_path,
             tags: exported.character.tags,
+            ..Default::default()
         };
         CharacterRepo::create(db, &input)
     }

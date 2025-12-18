@@ -75,9 +75,10 @@ fn default_rating() -> String {
     "sfw".to_string()
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateCharacterInput {
+    #[serde(default)]
     pub name: String,
     #[serde(default)]
     pub description: String,

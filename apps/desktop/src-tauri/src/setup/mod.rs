@@ -32,6 +32,7 @@ pub async fn seed_defaults(state: &AppState) -> AppResult<()> {
             example_dialogues: String::new(),
             avatar_path: None,
             tags: vec!["assistant".to_string(), "friendly".to_string()],
+            ..Default::default()
         }, STARTER_CHARACTER_ID)?;
     }
     
