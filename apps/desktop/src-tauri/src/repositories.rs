@@ -12,19 +12,38 @@ use std::str::FromStr;
 pub struct CharacterRepo;
 
 impl CharacterRepo {
+    fn build_metadata(character: &CreateCharacterInput) -> serde_json::Value {
+        serde_json::json!({
+            "scenario": character.scenario,
+            "backstory": character.backstory,
+            "likes": character.likes,
+            "dislikes": character.dislikes,
+            "physicalTraits": character.physical_traits,
+            "speechPatterns": character.speech_patterns,
+            "alternateGreetings": character.alternate_greetings,
+            "creatorName": character.creator_name,
+            "creatorNotes": character.creator_notes,
+            "characterVersion": character.character_version,
+            "povType": character.pov_type,
+            "rating": character.rating,
+            "genreTags": character.genre_tags,
+        })
+    }
+    
     pub fn create(db: &Database, character: &CreateCharacterInput) -> AppResult<Character> {
         let id = new_id();
         let now = now_timestamp();
         let tags_json = serde_json::to_string(&character.tags)?;
+        let metadata_json = serde_json::to_string(&Self::build_metadata(character))?;
         
         db.execute(
             "INSERT INTO characters (id, name, description, personality, system_prompt, 
-             first_message, example_dialogues, avatar_path, tags, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+             first_message, example_dialogues, avatar_path, tags, metadata, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
             params![
                 id, character.name, character.description, character.personality,
                 character.system_prompt, character.first_message, character.example_dialogues,
-                character.avatar_path, tags_json, now, now
+                character.avatar_path, tags_json, metadata_json, now, now
             ],
         )?;
         
@@ -34,15 +53,16 @@ impl CharacterRepo {
     pub fn create_bundled(db: &Database, character: &CreateCharacterInput, id: &str) -> AppResult<Character> {
         let now = now_timestamp();
         let tags_json = serde_json::to_string(&character.tags)?;
+        let metadata_json = serde_json::to_string(&Self::build_metadata(character))?;
         
         db.execute(
             "INSERT INTO characters (id, name, description, personality, system_prompt, 
-             first_message, example_dialogues, avatar_path, tags, is_bundled, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 1, ?10, ?11)",
+             first_message, example_dialogues, avatar_path, tags, metadata, is_bundled, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 1, ?11, ?12)",
             params![
                 id, character.name, character.description, character.personality,
                 character.system_prompt, character.first_message, character.example_dialogues,
-                character.avatar_path, tags_json, now, now
+                character.avatar_path, tags_json, metadata_json, now, now
             ],
         )?;
         
@@ -104,6 +124,38 @@ impl CharacterRepo {
             params.push(Box::new(json));
         }
         
+        // Handle enhanced fields via metadata JSON merge
+        let has_metadata_updates = input.scenario.is_some() || input.backstory.is_some() ||
+            input.likes.is_some() || input.dislikes.is_some() ||
+            input.physical_traits.is_some() || input.speech_patterns.is_some() ||
+            input.alternate_greetings.is_some() || input.creator_name.is_some() ||
+            input.creator_notes.is_some() || input.character_version.is_some() ||
+            input.pov_type.is_some() || input.rating.is_some() || input.genre_tags.is_some();
+        
+        if has_metadata_updates {
+            // Get current character to merge metadata
+            let current = Self::find_by_id(db, id)?;
+            let mut metadata = current.metadata.clone();
+            
+            if let Some(v) = &input.scenario { metadata["scenario"] = serde_json::json!(v); }
+            if let Some(v) = &input.backstory { metadata["backstory"] = serde_json::json!(v); }
+            if let Some(v) = &input.likes { metadata["likes"] = serde_json::json!(v); }
+            if let Some(v) = &input.dislikes { metadata["dislikes"] = serde_json::json!(v); }
+            if let Some(v) = &input.physical_traits { metadata["physicalTraits"] = serde_json::json!(v); }
+            if let Some(v) = &input.speech_patterns { metadata["speechPatterns"] = serde_json::json!(v); }
+            if let Some(v) = &input.alternate_greetings { metadata["alternateGreetings"] = serde_json::json!(v); }
+            if let Some(v) = &input.creator_name { metadata["creatorName"] = serde_json::json!(v); }
+            if let Some(v) = &input.creator_notes { metadata["creatorNotes"] = serde_json::json!(v); }
+            if let Some(v) = &input.character_version { metadata["characterVersion"] = serde_json::json!(v); }
+            if let Some(v) = &input.pov_type { metadata["povType"] = serde_json::json!(v); }
+            if let Some(v) = &input.rating { metadata["rating"] = serde_json::json!(v); }
+            if let Some(v) = &input.genre_tags { metadata["genreTags"] = serde_json::json!(v); }
+            
+            let metadata_json = serde_json::to_string(&metadata)?;
+            query.push_str(", metadata = ?");
+            params.push(Box::new(metadata_json));
+        }
+        
         query.push_str(" WHERE id = ?");
         params.push(Box::new(id.to_string()));
         
@@ -125,6 +177,7 @@ impl CharacterRepo {
     pub fn row_to_character(row: &rusqlite::Row<'_>) -> rusqlite::Result<Character> {
         let tags_str: String = row.get("tags")?;
         let metadata_str: String = row.get("metadata")?;
+        let metadata: serde_json::Value = serde_json::from_str(&metadata_str).unwrap_or_default();
         
         Ok(Character {
             id: row.get("id")?,
@@ -140,7 +193,27 @@ impl CharacterRepo {
             created_at: row.get("created_at")?,
             updated_at: row.get("updated_at")?,
             deleted_at: row.get("deleted_at")?,
-            metadata: serde_json::from_str(&metadata_str).unwrap_or_default(),
+            
+            // Enhanced fields from metadata
+            scenario: metadata.get("scenario").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            backstory: metadata.get("backstory").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            likes: metadata.get("likes").and_then(|v| serde_json::from_value(v.clone()).ok()).unwrap_or_default(),
+            dislikes: metadata.get("dislikes").and_then(|v| serde_json::from_value(v.clone()).ok()).unwrap_or_default(),
+            physical_traits: metadata.get("physicalTraits").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            speech_patterns: metadata.get("speechPatterns").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            alternate_greetings: metadata.get("alternateGreetings").and_then(|v| serde_json::from_value(v.clone()).ok()).unwrap_or_default(),
+            
+            // Creator info from metadata
+            creator_name: metadata.get("creatorName").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            creator_notes: metadata.get("creatorNotes").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            character_version: metadata.get("characterVersion").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            
+            // Category tags from metadata
+            pov_type: metadata.get("povType").and_then(|v| v.as_str()).unwrap_or("any").to_string(),
+            rating: metadata.get("rating").and_then(|v| v.as_str()).unwrap_or("sfw").to_string(),
+            genre_tags: metadata.get("genreTags").and_then(|v| serde_json::from_value(v.clone()).ok()).unwrap_or_default(),
+            
+            metadata,
         })
     }
 }

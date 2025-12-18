@@ -484,6 +484,46 @@ impl MessageService {
 // Lorebook Service
 // ============================================
 
+/// Helper function for whole-word matching (word boundaries)
+fn match_whole_word(text: &str, keyword: &str) -> bool {
+    let keyword_chars: Vec<char> = keyword.chars().collect();
+    let text_chars: Vec<char> = text.chars().collect();
+    
+    if keyword_chars.is_empty() {
+        return false;
+    }
+    
+    let mut i = 0;
+    while i <= text_chars.len().saturating_sub(keyword_chars.len()) {
+        // Check if we have a match at position i
+        let matches = text_chars[i..].iter()
+            .take(keyword_chars.len())
+            .zip(keyword_chars.iter())
+            .all(|(a, b)| a == b);
+        
+        if matches {
+            // Check word boundaries
+            let before_ok = if i == 0 {
+                true
+            } else {
+                !text_chars[i - 1].is_alphanumeric()
+            };
+            
+            let after_ok = if i + keyword_chars.len() >= text_chars.len() {
+                true
+            } else {
+                !text_chars[i + keyword_chars.len()].is_alphanumeric()
+            };
+            
+            if before_ok && after_ok {
+                return true;
+            }
+        }
+        i += 1;
+    }
+    false
+}
+
 pub struct LorebookService;
 
 impl LorebookService {
@@ -556,8 +596,15 @@ impl LorebookService {
             if !entry.is_enabled { return false; }
             entry.keywords.iter().any(|kw| {
                 let k = if entry.case_sensitive { kw.clone() } else { kw.to_lowercase() };
-                let t = if entry.case_sensitive { text } else { &text_lower };
-                t.contains(&k)
+                let t = if entry.case_sensitive { text.to_string() } else { text_lower.clone() };
+                
+                if entry.match_whole_word {
+                    // Use word boundary matching
+                    match_whole_word(&t, &k)
+                } else {
+                    // Simple substring match
+                    t.contains(&k)
+                }
             })
         }).collect();
         
@@ -599,6 +646,16 @@ impl SettingsService {
 // Memory Service
 // ============================================
 
+/// Replace {{user}} and {{char}} placeholders with actual names
+fn replace_placeholders(text: &str, char_name: &str, user_name: &str) -> String {
+    text.replace("{{char}}", char_name)
+        .replace("{{user}}", user_name)
+        .replace("<char>", char_name)
+        .replace("<user>", user_name)
+        .replace("{{Char}}", char_name)
+        .replace("{{User}}", user_name)
+}
+
 pub struct MemoryService;
 
 impl MemoryService {
@@ -627,8 +684,17 @@ impl MemoryService {
         let summary_budget = settings.generation.summary_budget.unwrap_or(300);
         let response_reserve = settings.generation.response_reserve.unwrap_or(512);
         
+        // Get user name early for placeholder replacement
+        let user_name = persona.as_ref().map(|p| p.name.clone()).unwrap_or("User".to_string());
+        
         // ====== Tier 1: Build System Prompt ======
         let mut system_parts = Vec::new();
+        
+        // --- Character's custom system prompt (highest priority) ---
+        if !character.system_prompt.is_empty() {
+            let custom_prompt = replace_placeholders(&character.system_prompt, &character.name, &user_name);
+            system_parts.push(custom_prompt);
+        }
         
         // --- START NEW PROMPT FORMAT ---
         // Format:
@@ -637,8 +703,6 @@ impl MemoryService {
         // Personality: [Personality]
         // Scenario: [Scenario]
         // [Description/Body]
-        // 
-        // Take the role of [Name]. You must engage in a roleplay conversation with {{user}}...
 
         // 1. Character Name
         system_parts.push(format!("Character: {}", character.name));
@@ -650,22 +714,20 @@ impl MemoryService {
 
         // 3. Personality
         if !character.personality.is_empty() {
-             system_parts.push(format!("Personality: {}", character.personality));
+             let personality = replace_placeholders(&character.personality, &character.name, &user_name);
+             system_parts.push(format!("Personality: {}", personality));
         }
 
-        // 4. Description and Scenario extraction
-        // Users might have put "Scenario: ..." inside the description, so we try to handle that cleanly.
-        // But ideally, if there is a separate scenario field, we use it (not currently in Character entity, 
-        // it seems merged into description in import_card).
-        // Let's assume description contains everything else.
+        // 4. Description and Scenario
         if !character.description.is_empty() {
-             system_parts.push(character.description.clone());
+             let description = replace_placeholders(&character.description, &character.name, &user_name);
+             system_parts.push(description);
         }
 
         // 5. Persona (User Context)
         if let Some(p) = &persona {
             if !p.description.is_empty() {
-                system_parts.push(format!("User persona: {}", p.description));
+                system_parts.push(format!("User persona ({}): {}", p.name, p.description));
             }
         }
         
@@ -734,16 +796,16 @@ impl MemoryService {
             used_lore_tokens += tokens;
         }
         
-        // Example dialogues
+        // Example dialogues (with placeholder replacement)
         if !character.example_dialogues.is_empty() {
-            system_parts.push(format!("Examples:\n{}", character.example_dialogues));
+            let examples = replace_placeholders(&character.example_dialogues, &character.name, &user_name);
+            system_parts.push(format!("Example dialogue:\n{}", examples));
         }
         
-        // MANDATORY INSTRUCTION
-        let user_name = persona.map(|p| p.name).unwrap_or("User".to_string());
+        // MANDATORY INSTRUCTION (with actual names, not placeholders)
         let mandatory_instruction = format!(
-            "Take the role of {}. You must engage in a roleplay conversation with {{user}}. Do not write {{user}}'s dialogue. Respond from {}'s perspective, embodying her personality and knowledge.", 
-            character.name, character.name
+            "Take the role of {}. You must engage in a roleplay conversation with {}. Do not write {}'s dialogue or actions. Respond from {}'s perspective, embodying their personality and knowledge.", 
+            character.name, user_name, user_name, character.name
         );
         system_parts.push(mandatory_instruction);
 
@@ -773,7 +835,7 @@ impl MemoryService {
             system_prompt: final_system,
             messages: history,
             character_name: character.name.clone(),
-            persona_name: user_name,
+            persona_name: user_name.clone(),
             total_tokens: sys_tokens + history_tokens,
         })
     }
@@ -814,18 +876,24 @@ impl MemoryService {
         let summary_budget = settings.generation.summary_budget.unwrap_or(300);
         let response_reserve = settings.generation.response_reserve.unwrap_or(512);
         
+        // Get user name early for placeholder replacement
+        let user_name = persona.as_ref().map(|p| p.name.clone()).unwrap_or("User".to_string());
+        
         // ====== Tier 1: Build System Prompt ======
         let mut system_parts = Vec::new();
+
+        // --- Character's custom system prompt (highest priority) ---
+        if !character.system_prompt.is_empty() {
+            let custom_prompt = replace_placeholders(&character.system_prompt, &character.name, &user_name);
+            system_parts.push(custom_prompt);
+        }
 
         // --- START NEW PROMPT FORMAT ---
         // Format:
         // Character: [Name]
         // Tags: [Tags]
         // Personality: [Personality]
-        // Scenario: [Scenario]
         // [Description/Body]
-        // 
-        // Take the role of [Name]. You must engage in a roleplay conversation with {{user}}...
 
         // 1. Character Name
         system_parts.push(format!("Character: {}", character.name));
@@ -837,18 +905,20 @@ impl MemoryService {
 
         // 3. Personality
         if !character.personality.is_empty() {
-             system_parts.push(format!("Personality: {}", character.personality));
+             let personality = replace_placeholders(&character.personality, &character.name, &user_name);
+             system_parts.push(format!("Personality: {}", personality));
         }
 
         // 4. Description and Scenario
         if !character.description.is_empty() {
-             system_parts.push(character.description.clone());
+             let description = replace_placeholders(&character.description, &character.name, &user_name);
+             system_parts.push(description);
         }
 
         // 5. Persona (User Context)
         if let Some(p) = &persona {
             if !p.description.is_empty() {
-                system_parts.push(format!("User persona: {}", p.description));
+                system_parts.push(format!("User persona ({}): {}", p.name, p.description));
             }
         }
         
@@ -920,16 +990,16 @@ impl MemoryService {
             used_lore_tokens += tokens;
         }
         
-        // Example dialogues
+        // Example dialogues (with placeholder replacement)
         if !character.example_dialogues.is_empty() {
-            system_parts.push(format!("Examples:\n{}", character.example_dialogues));
+            let examples = replace_placeholders(&character.example_dialogues, &character.name, &user_name);
+            system_parts.push(format!("Example dialogue:\n{}", examples));
         }
         
-        // MANDATORY INSTRUCTION
-        let user_name = persona.map(|p| p.name).unwrap_or("User".to_string());
+        // MANDATORY INSTRUCTION (with actual names, not placeholders)
         let mandatory_instruction = format!(
-            "Take the role of {}. You must engage in a roleplay conversation with {{user}}. Do not write {{user}}'s dialogue. Respond from {}'s perspective, embodying her personality and knowledge.", 
-            character.name, character.name
+            "Take the role of {}. You must engage in a roleplay conversation with {}. Do not write {}'s dialogue or actions. Respond from {}'s perspective, embodying their personality and knowledge.", 
+            character.name, user_name, user_name, character.name
         );
         system_parts.push(mandatory_instruction);
 
@@ -959,7 +1029,7 @@ impl MemoryService {
             system_prompt: final_system,
             messages: history,
             character_name: character.name.clone(),
-            persona_name: user_name,
+            persona_name: user_name.clone(),
             total_tokens: sys_tokens + history_tokens,
         })
     }

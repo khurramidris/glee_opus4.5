@@ -203,6 +203,7 @@ async fn process_queue(state: &AppState, app_handle: &AppHandle) {
         &task.conversation_id,
         &message_id,
         settings.generation.stop_sequences.clone(),
+        &character.name,
     ).await;
     
     // Finish generation state
@@ -328,14 +329,16 @@ struct TokenFilter {
     buffer: String,
     in_thinking_block: bool,
     in_response_block: bool,
+    character_name: String,
 }
 
 impl TokenFilter {
-    fn new() -> Self {
+    fn new(character_name: &str) -> Self {
         Self {
             buffer: String::new(),
             in_thinking_block: false, 
             in_response_block: false,
+            character_name: character_name.to_string(),
         }
     }
 
@@ -366,26 +369,33 @@ impl TokenFilter {
                             
                             // Check for leakage in the buffer only if we haven't emitted anything yet (neutral state)
                             if !self.in_thinking_block && !self.in_response_block && self.buffer.len() > 20 {
-                                let leakage_markers = ["Scenario:", "System:", "You are Aria", "Aria\nScenario:"];
-                                for marker in leakage_markers {
+                                let leakage_markers = vec![
+                                    "Scenario:".to_string(),
+                                    "System:".to_string(),
+                                    format!("You are {}", self.character_name),
+                                    format!("{}\nScenario:", self.character_name),
+                                ];
+                                for marker in &leakage_markers {
                                     if self.buffer.trim_start().starts_with(marker) {
                                         tracing::warn!("Detected system prompt leakage starting with '{}'. Initiating cleaning.", marker);
                                         
                                         // Heuristic: The ACTUAL response usually starts after the repetition.
-                                        // Look for the character name "Aria:" or just the end of the scenario block.
+                                        // Look for the character name or just the end of the scenario block.
                                         // Since we don't know exactly where it ends, we might need to be aggressive.
-                                        // Let's look for "Aria:" or double newline.
                                         
-                                        if let Some(aria_pos) = self.buffer.find("Aria: ") {
+                                        let char_dialogue = format!("{}: ", self.character_name);
+                                        let char_action = format!("{}: *", self.character_name);
+                                        
+                                        if let Some(char_pos) = self.buffer.find(&char_dialogue) {
                                              // Found the true start?
-                                             // "Scenario: ... \n\nAria: Hello!"
-                                             tracing::info!("Found 'Aria:' marker at {}. Stripping up to there.", aria_pos);
-                                             self.buffer = self.buffer[aria_pos + 6..].to_string(); // Keep text after "Aria: "
+                                             // "Scenario: ... \n\n[CharName]: Hello!"
+                                             tracing::info!("Found '{}' marker at {}. Stripping up to there.", char_dialogue, char_pos);
+                                             self.buffer = self.buffer[char_pos + char_dialogue.len()..].to_string();
                                              // Assume this is the start of the response
                                              self.in_response_block = true;
-                                        } else if let Some(aria_action_pos) = self.buffer.find("Aria: *") {
-                                             tracing::info!("Found 'Aria: *' marker at {}. Stripping up to there.", aria_action_pos);
-                                             self.buffer = self.buffer[aria_action_pos + 6..].to_string(); 
+                                        } else if let Some(char_action_pos) = self.buffer.find(&char_action) {
+                                             tracing::info!("Found '{}' marker at {}. Stripping up to there.", char_action, char_action_pos);
+                                             self.buffer = self.buffer[char_action_pos + char_dialogue.len()..].to_string(); 
                                              self.in_response_block = true;
                                         } else {
                                             // Fallback: If buffer gets too long with leakage but no clear start, 
@@ -605,6 +615,7 @@ async fn generate_response(
     conversation_id: &str,
     message_id: &str,
     stop_sequences: Option<Vec<String>>,
+    character_name: &str,
 ) -> Result<String, GenerationError> {
     tracing::info!("Starting generation for msg {}, max_tokens: {}", message_id, max_tokens);
     
@@ -622,7 +633,7 @@ async fn generate_response(
     
     let mut full_content = String::new();
     let mut internal_full_content = String::new();
-    let mut filter = TokenFilter::new();
+    let mut filter = TokenFilter::new(character_name);
     
     while let Some(event) = stream.recv().await {
         match event {

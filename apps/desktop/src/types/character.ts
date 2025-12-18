@@ -29,8 +29,8 @@ export interface Character {
   characterVersion: string;
 
   // Category tags
-  povType: 'any' | 'first' | 'second' | 'third';
-  rating: 'sfw' | 'nsfw' | 'limitless';
+  povType: string;
+  rating: string;
   genreTags: string[];
 }
 
@@ -59,8 +59,8 @@ export interface CreateCharacterInput {
   characterVersion?: string;
 
   // Category tags
-  povType?: 'any' | 'first' | 'second' | 'third';
-  rating?: 'sfw' | 'nsfw' | 'limitless';
+  povType?: string;
+  rating?: string;
   genreTags?: string[];
 }
 
@@ -89,8 +89,8 @@ export interface UpdateCharacterInput {
   characterVersion?: string;
 
   // Category tags
-  povType?: 'any' | 'first' | 'second' | 'third';
-  rating?: 'sfw' | 'nsfw' | 'limitless';
+  povType?: string;
+  rating?: string;
   genreTags?: string[];
 }
 

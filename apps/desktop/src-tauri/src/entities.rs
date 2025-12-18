@@ -33,6 +33,46 @@ pub struct Character {
     pub updated_at: i64,
     pub deleted_at: Option<i64>,
     pub metadata: serde_json::Value,
+    
+    // Enhanced character fields
+    #[serde(default)]
+    pub scenario: String,
+    #[serde(default)]
+    pub backstory: String,
+    #[serde(default)]
+    pub likes: Vec<String>,
+    #[serde(default)]
+    pub dislikes: Vec<String>,
+    #[serde(default)]
+    pub physical_traits: String,
+    #[serde(default)]
+    pub speech_patterns: String,
+    #[serde(default)]
+    pub alternate_greetings: Vec<String>,
+    
+    // Creator attribution
+    #[serde(default)]
+    pub creator_name: String,
+    #[serde(default)]
+    pub creator_notes: String,
+    #[serde(default)]
+    pub character_version: String,
+    
+    // Category tags
+    #[serde(default = "default_pov_type")]
+    pub pov_type: String,
+    #[serde(default = "default_rating")]
+    pub rating: String,
+    #[serde(default)]
+    pub genre_tags: Vec<String>,
+}
+
+fn default_pov_type() -> String {
+    "any".to_string()
+}
+
+fn default_rating() -> String {
+    "sfw".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,6 +92,38 @@ pub struct CreateCharacterInput {
     pub avatar_path: Option<String>,
     #[serde(default)]
     pub tags: Vec<String>,
+    
+    // Enhanced fields
+    #[serde(default)]
+    pub scenario: String,
+    #[serde(default)]
+    pub backstory: String,
+    #[serde(default)]
+    pub likes: Vec<String>,
+    #[serde(default)]
+    pub dislikes: Vec<String>,
+    #[serde(default)]
+    pub physical_traits: String,
+    #[serde(default)]
+    pub speech_patterns: String,
+    #[serde(default)]
+    pub alternate_greetings: Vec<String>,
+    
+    // Creator info
+    #[serde(default)]
+    pub creator_name: String,
+    #[serde(default)]
+    pub creator_notes: String,
+    #[serde(default)]
+    pub character_version: String,
+    
+    // Category tags
+    #[serde(default)]
+    pub pov_type: String,
+    #[serde(default)]
+    pub rating: String,
+    #[serde(default)]
+    pub genre_tags: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -65,6 +137,25 @@ pub struct UpdateCharacterInput {
     pub example_dialogues: Option<String>,
     pub avatar_path: Option<String>,
     pub tags: Option<Vec<String>>,
+    
+    // Enhanced fields
+    pub scenario: Option<String>,
+    pub backstory: Option<String>,
+    pub likes: Option<Vec<String>>,
+    pub dislikes: Option<Vec<String>>,
+    pub physical_traits: Option<String>,
+    pub speech_patterns: Option<String>,
+    pub alternate_greetings: Option<Vec<String>>,
+    
+    // Creator info
+    pub creator_name: Option<String>,
+    pub creator_notes: Option<String>,
+    pub character_version: Option<String>,
+    
+    // Category tags
+    pub pov_type: Option<String>,
+    pub rating: Option<String>,
+    pub genre_tags: Option<Vec<String>>,
 }
 
 // Character Card V2 - wrapper structure

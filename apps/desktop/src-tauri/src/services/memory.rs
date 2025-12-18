@@ -83,7 +83,7 @@ impl MemoryService {
         })
     }
     
-    /// Create memory with embedding
+    /// Create memory with embedding (with retry on failure)
     pub async fn create_with_embedding(
         db: &Database,
         sidecar: &SidecarHandle,
@@ -95,16 +95,32 @@ impl MemoryService {
     ) -> AppResult<MemoryEntry> {
         let memory = Self::create(db, character_id, content, conversation_id, importance, source_messages)?;
         
-        // Generate and store embedding
-        match EmbeddingService::generate(sidecar, content).await {
-            Ok(embedding) => {
-                if let Err(e) = EmbeddingService::store(db, "memory", &memory.id, &embedding) {
-                    tracing::warn!("Failed to store memory embedding: {}", e);
+        // Generate and store embedding with retry
+        let mut embedding_stored = false;
+        for attempt in 1..=2 {
+            match EmbeddingService::generate(sidecar, content).await {
+                Ok(embedding) => {
+                    match EmbeddingService::store(db, "memory", &memory.id, &embedding) {
+                        Ok(_) => {
+                            embedding_stored = true;
+                            break;
+                        }
+                        Err(e) => {
+                            tracing::warn!("Failed to store memory embedding (attempt {}): {}", attempt, e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to generate memory embedding (attempt {}): {}", attempt, e);
+                    if attempt < 2 {
+                        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                    }
                 }
             }
-            Err(e) => {
-                tracing::warn!("Failed to generate memory embedding: {}", e);
-            }
+        }
+        
+        if !embedding_stored {
+            tracing::warn!("Memory {} stored without embedding - semantic search may not find it", memory.id);
         }
         
         Ok(memory)
@@ -289,39 +305,66 @@ impl MemoryService {
 
 /// Helper function to detect contradicting facts
 /// Returns true if two facts appear to be about the same subject with different values
-/// e.g., "User is 25 years old" vs "User is 30 years old"
+/// e.g., "User: is 25 years old" vs "User: is 30 years old"
 fn is_contradicting_fact(existing: &str, new: &str) -> bool {
-    // Quick check: both must be about "user"
-    if !existing.starts_with("user") || !new.starts_with("user") {
+    // Extract category prefix (User:, World:, Relationship:, Emotional:)
+    let existing_cat = existing.split(':').next().unwrap_or("");
+    let new_cat = new.split(':').next().unwrap_or("");
+    
+    // Both must be in the same category to contradict
+    if existing_cat != new_cat {
         return false;
     }
     
-    // Check for age contradictions: "user is X years old" patterns
-    let age_pattern_words = ["years old", "year old", "aged"];
-    let existing_has_age = age_pattern_words.iter().any(|p| existing.contains(p));
-    let new_has_age = age_pattern_words.iter().any(|p| new.contains(p));
-    if existing_has_age && new_has_age && existing != new {
+    // Get the content after the category prefix
+    let existing_content = existing.split(':').skip(1).collect::<Vec<_>>().join(":").to_lowercase();
+    let new_content = new.split(':').skip(1).collect::<Vec<_>>().join(":").to_lowercase();
+    
+    // If no category prefix, check legacy format (starts with "user")
+    let existing_lower = existing.to_lowercase();
+    let new_lower = new.to_lowercase();
+    let (check_existing, check_new) = if !existing_content.is_empty() {
+        (existing_content, new_content)
+    } else if existing_lower.starts_with("user") && new_lower.starts_with("user") {
+        (existing_lower.clone(), new_lower.clone())
+    } else {
+        return false;
+    };
+    
+    // Check for age contradictions: "is X years old" patterns
+    let age_pattern_words = ["years old", "year old", "aged", "is age"];
+    let existing_has_age = age_pattern_words.iter().any(|p| check_existing.contains(p));
+    let new_has_age = age_pattern_words.iter().any(|p| check_new.contains(p));
+    if existing_has_age && new_has_age && check_existing != check_new {
         return true;
     }
     
-    // Check for "user's name is X" contradictions
-    if existing.contains("name is") && new.contains("name is") && existing != new {
+    // Check for "name is X" contradictions
+    if check_existing.contains("name is") && check_new.contains("name is") && check_existing != check_new {
         return true;
     }
     
-    // Check for "user is from X" / location contradictions
-    let location_words = ["is from", "lives in", "located in"];
-    let existing_has_loc = location_words.iter().any(|p| existing.contains(p));
-    let new_has_loc = location_words.iter().any(|p| new.contains(p));
-    if existing_has_loc && new_has_loc && existing != new {
+    // Check for location contradictions
+    let location_words = ["is from", "lives in", "located in", "from the"];
+    let existing_has_loc = location_words.iter().any(|p| check_existing.contains(p));
+    let new_has_loc = location_words.iter().any(|p| check_new.contains(p));
+    if existing_has_loc && new_has_loc && check_existing != check_new {
         return true;
     }
     
     // Check for job/profession contradictions
-    let job_words = ["works as", "job is", "profession is", "works at"];
-    let existing_has_job = job_words.iter().any(|p| existing.contains(p));
-    let new_has_job = job_words.iter().any(|p| new.contains(p));
-    if existing_has_job && new_has_job && existing != new {
+    let job_words = ["works as", "job is", "profession is", "works at", "employed as"];
+    let existing_has_job = job_words.iter().any(|p| check_existing.contains(p));
+    let new_has_job = job_words.iter().any(|p| check_new.contains(p));
+    if existing_has_job && new_has_job && check_existing != check_new {
+        return true;
+    }
+    
+    // Check for relationship status contradictions
+    let rel_words = ["married", "single", "dating", "in a relationship", "engaged"];
+    let existing_has_rel = rel_words.iter().any(|p| check_existing.contains(p));
+    let new_has_rel = rel_words.iter().any(|p| check_new.contains(p));
+    if existing_has_rel && new_has_rel && check_existing != check_new {
         return true;
     }
     
@@ -343,22 +386,27 @@ impl MemoryService {
             return Ok(());
         }
 
-        // IMPROVED: Comprehensive extraction prompt that captures more fact types
+        // IMPROVED: Comprehensive extraction prompt that captures ALL fact types
         let prompt = format!(
-            r#"Extract important information about the user from this message. Include:
-- Personal facts (name, age, job, location)
-- Preferences and interests
-- Emotional state or mood indicators
-- Relationship dynamics
+            r#"Extract important facts from this message that should be remembered long-term.
+
+CATEGORIES TO EXTRACT:
+1. USER FACTS: Name, age, job, location, preferences, background, relationships
+2. WORLD FACTS: Locations, settings, events, NPCs established in roleplay
+3. RELATIONSHIP: How the relationship between participants is evolving
+4. EMOTIONAL: Significant emotional moments or mood changes
+
+PREFIX each fact with its category: "User:", "World:", "Relationship:", or "Emotional:"
 
 Return ONLY a JSON array of strings. Each item should be a complete sentence.
 If nothing notable, return [].
 
 Examples:
-- "My name is Alex and I'm 25" -> ["User's name is Alex", "User is 25 years old"]
-- "I love hiking on weekends" -> ["User enjoys hiking", "User is active on weekends"]
-- "sigh... rough day at work" -> ["User seems stressed about work"]
-- "Thanks bro, you're awesome" -> ["User uses casual friendly language"]
+- "My name is Alex and I'm 25" -> ["User: Name is Alex", "User: Is 25 years old"]
+- "I love hiking on weekends" -> ["User: Enjoys hiking", "User: Is active on weekends"]
+- "*the tavern grows quiet*" -> ["World: The tavern has grown quiet"]
+- "You're the only one who understands me" -> ["Relationship: User feels uniquely understood by character"]
+- "*sighs with relief*" -> ["Emotional: User expressed relief"]
 - "How's the weather?" -> []
 
 Message: "{}"
