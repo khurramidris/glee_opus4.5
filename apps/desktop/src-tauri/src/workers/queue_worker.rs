@@ -55,7 +55,10 @@ async fn process_queue(state: &AppState, app_handle: &AppHandle) {
     // Check if model is loaded
     let sidecar = match state.get_sidecar() {
         Some(s) => s,
-        None => return, // No model loaded, skip
+        None => {
+            // tracing::trace!("process_queue: No sidecar loaded");
+            return; 
+        },
     };
     
     // WATCHDOG: Verify sidecar is still responsive before processing
@@ -73,13 +76,17 @@ async fn process_queue(state: &AppState, app_handle: &AppHandle) {
     
     // Don't start new generation if one is already running
     if state.is_generating() {
+        tracing::debug!("process_queue: Generation already in progress");
         return;
     }
     
     // Get next pending task
     let task = match QueueRepo::get_next_pending(&state.db) {
         Ok(Some(t)) => t,
-        Ok(None) => return, // No pending tasks
+        Ok(None) => {
+            // tracing::trace!("process_queue: No pending tasks");
+            return;
+        },
         Err(e) => {
             tracing::error!("Failed to get next task: {}", e);
             return;
@@ -99,11 +106,13 @@ async fn process_queue(state: &AppState, app_handle: &AppHandle) {
         Some(id) => match CharacterRepo::find_by_id(&state.db, id) {
             Ok(c) => c,
             Err(e) => {
+                tracing::error!("Character not found for task {}: {}", task.id, e);
                 fail_task(state, &task.id, &format!("Character not found: {}", e));
                 return;
             }
         },
         None => {
+            tracing::error!("No target character specified for task {}", task.id);
             fail_task(state, &task.id, "No target character specified");
             return;
         }
@@ -280,6 +289,18 @@ async fn process_queue(state: &AppState, app_handle: &AppHandle) {
         }
         Err(GenerationError::Error(e)) => {
             tracing::error!("Generation failed for task {}: {}", task.id, e);
+            
+            // Check for sidecar stall and force restart
+            if e.contains("stalled") || e.contains("timeout") {
+                tracing::warn!("Stall detected! Force stopping sidecar to clear zombie state.");
+                if let Some(handle) = state.take_sidecar() {
+                     // Spawn cleanup in background to not block
+                     tokio::spawn(async move {
+                         let _ = crate::sidecar::stop_sidecar(handle).await;
+                     });
+                }
+            }
+
             // Delete the empty placeholder message
             let _ = MessageRepo::delete(&state.db, &message_id);
             // Reset conversation active message to parent
@@ -303,6 +324,277 @@ enum GenerationError {
     Error(String),
 }
 
+struct TokenFilter {
+    buffer: String,
+    in_thinking_block: bool,
+    in_response_block: bool,
+}
+
+impl TokenFilter {
+    fn new() -> Self {
+        Self {
+            buffer: String::new(),
+            in_thinking_block: false, 
+            in_response_block: false,
+        }
+    }
+
+    fn process(&mut self, token: &str) -> Vec<String> {
+        self.buffer.push_str(token);
+        let mut output = Vec::new();
+
+        // Safety break for loop
+        let mut loop_count = 0;
+        loop {
+            loop_count += 1;
+            if loop_count > 1000 {
+                 tracing::error!("TokenFilter loop limit exceeded. Flushing.");
+                 output.push(self.buffer.clone());
+                 self.buffer.clear();
+                 break;
+            }
+
+            if self.buffer.is_empty() {
+                break;
+            }
+            
+                            // --- STRICT MODE & PREAMBLE CLEANING ---
+                            // 1. We ONLY emit content inside <RESPONSE>...</RESPONSE>
+                            // 2. We consume but hide <thinking>...</thinking>
+                            // 3. CLEANING: If the buffer starts with "Scenario:" or a known system prompt header, 
+                            //    it means the model is repeating instructions. We must strip this.
+                            
+                            // Check for leakage in the buffer only if we haven't emitted anything yet (neutral state)
+                            if !self.in_thinking_block && !self.in_response_block && self.buffer.len() > 20 {
+                                let leakage_markers = ["Scenario:", "System:", "You are Aria", "Aria\nScenario:"];
+                                for marker in leakage_markers {
+                                    if self.buffer.trim_start().starts_with(marker) {
+                                        tracing::warn!("Detected system prompt leakage starting with '{}'. Initiating cleaning.", marker);
+                                        
+                                        // Heuristic: The ACTUAL response usually starts after the repetition.
+                                        // Look for the character name "Aria:" or just the end of the scenario block.
+                                        // Since we don't know exactly where it ends, we might need to be aggressive.
+                                        // Let's look for "Aria:" or double newline.
+                                        
+                                        if let Some(aria_pos) = self.buffer.find("Aria: ") {
+                                             // Found the true start?
+                                             // "Scenario: ... \n\nAria: Hello!"
+                                             tracing::info!("Found 'Aria:' marker at {}. Stripping up to there.", aria_pos);
+                                             self.buffer = self.buffer[aria_pos + 6..].to_string(); // Keep text after "Aria: "
+                                             // Assume this is the start of the response
+                                             self.in_response_block = true;
+                                        } else if let Some(aria_action_pos) = self.buffer.find("Aria: *") {
+                                             tracing::info!("Found 'Aria: *' marker at {}. Stripping up to there.", aria_action_pos);
+                                             self.buffer = self.buffer[aria_action_pos + 6..].to_string(); 
+                                             self.in_response_block = true;
+                                        } else {
+                                            // Fallback: If buffer gets too long with leakage but no clear start, 
+                                            // we might just clear it if we are sure it's garbage.
+                                            // But waiting is safer for now.
+                                        }
+                                        break;
+                                    }
+                                }
+                            }
+                            
+                            // Cases:
+                            // - Buffer contains <thinking> start -> enter thinking mode
+                            // - Buffer contains </thinking> end -> exit thinking mode
+                            // - Buffer contains <RESPONSE> start -> enter response mode
+                            // - Buffer contains </RESPONSE> end -> exit response mode
+                            
+                            if self.in_thinking_block {
+                                if let Some(end_idx) = self.buffer.find("</thinking>") {
+                                    // end of thinking block
+                                    tracing::debug!("Thinking block ended.");
+                                    self.buffer = self.buffer[end_idx + 11..].to_string();
+                                    self.in_thinking_block = false;
+                                    continue;
+                                } else {
+                                    // Inside thought, discard buffer but keep partial end tags
+                                    let potential_tag = "</thinking>";
+                                    let mut keep_len = 0;
+                                     for i in (1..potential_tag.len()).rev() {
+                                        if self.buffer.ends_with(&potential_tag[..i]) {
+                                            keep_len = i;
+                                            break;
+                                        }
+                                    }
+                                    
+                                    if self.buffer.len() > keep_len {
+                                        // discard confirmed thinking content
+                                        self.buffer = self.buffer[self.buffer.len() - keep_len..].to_string();
+                                    }
+                                    break;
+                                }
+                            } else if self.in_response_block {
+                                 if let Some(end_idx) = self.buffer.find("</RESPONSE>") {
+                                    // Start of buffer to end_idx is VALID content
+                                    let content = self.buffer[..end_idx].to_string();
+                                    if !content.is_empty() {
+                                        output.push(content);
+                                    }
+                                    // Remove executed content + tag
+                                    self.buffer = self.buffer[end_idx + 11..].to_string();
+                                    self.in_response_block = false;
+                                    // Switch back to start_up (looking for next block?) or just neutral
+                                    // Technically we might get multiple response blocks, although rare.
+                                    continue;
+                                 } else {
+                                     // We are inside response block.
+                                     // IMPORTANT: We need to handle partial </RESPONSE> tag at the end
+                                     // so we don't emit part of the closing tag.
+                                     
+                                    let potential_tag = "</RESPONSE>";
+                                    let mut keep_len = 0;
+                                     for i in (1..potential_tag.len()).rev() {
+                                        if self.buffer.ends_with(&potential_tag[..i]) {
+                                            keep_len = i;
+                                            break;
+                                        }
+                                    }
+                                    
+                                    // Emit everything UP TO the partial tag
+                                    let emit_len = self.buffer.len() - keep_len;
+                                    if emit_len > 0 {
+                                        let content = self.buffer[..emit_len].to_string();
+                                        output.push(content);
+                                        self.buffer = self.buffer[emit_len..].to_string();
+                                    }
+                                    break; // Wait for more tokens
+                                 }
+                            } else {
+                                // NEUTRAL STATE (Startup or between blocks)
+                                // Look for <thinking> OR <RESPONSE>
+                                // AND also look for leakage which we handled above, but here we look for tags.
+                                
+                                let think_idx = self.buffer.find("<thinking>");
+                                let response_idx = self.buffer.find("<RESPONSE>");
+                                
+                                match (think_idx, response_idx) {
+                                    (Some(t_idx), Some(r_idx)) => {
+                                        // Both found, handle whichever comes first
+                                        if t_idx < r_idx {
+                                            self.handle_thinking_start(t_idx);
+                                        } else {
+                                            self.handle_response_start(r_idx);
+                                        }
+                                        continue;
+                                    },
+                                    (Some(t_idx), None) => {
+                                        self.handle_thinking_start(t_idx);
+                                        continue;
+                                    },
+                                    (None, Some(r_idx)) => {
+                                        self.handle_response_start(r_idx);
+                                        continue;
+                                    },
+                                    (None, None) => {
+                                        // No tags found yet.
+                                        // We are in discard mode essentially, BUT we must be careful not to discard
+                                        // a PARTIAL tag.
+                                        
+                                         if self.has_partial_tag() {
+                                             // Wait for more data
+                                             break;
+                                         } else {
+                                             // --- FALLBACK LOGIC ---
+                                             // If buffer gets excessively large (> 200 chars) without ANY tags,
+                                             // and we are in start_up_buffer_mode, we might assume the model failed to output tags.
+                                             // However, given the specific bug report (leaking system text), 
+                                             // we WANT to suppress that text.
+                                             // Leaked text example: "Scenario: ... Aria: ... "
+                                             // The actual response starts later.
+                                             // So safely discarding ~200 chars of garbage is actually GOOD here.
+                                             
+                                             // Only if we exceed a very large safety limit (e.g. 1000 chars) should we give up and just emit.
+                                             if self.buffer.len() > 1000 {
+                                                 tracing::warn!("Buffer full (1000 chars) without tags. Force emitting.");
+                                                 output.push(self.buffer.clone());
+                                                 self.buffer.clear();
+                                                 // Assume we are now inside response? Or just unstructured?
+                                                 // Let's assume response started implicitly.
+                                                 self.in_response_block = true; 
+                                                 continue;
+                                             }
+                                             
+                                             // Safe to discard? Not really, we might discard the start of "Hello".
+                                             // Wait, if it says "Hello", that's a valid response without tags.
+                                             // The problem is differentiating "Scenario: ..." (bad) from "Hello" (good).
+                                             
+                                             // Update: We've handled leakage detection above.
+                                             // If we reach here, we haven't found a tag OR a leakage marker yet.
+                                             // So we continue buffering.
+                                             break;
+                                         }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        output
+                    }
+    
+    fn handle_thinking_start(&mut self, start_idx: usize) {
+        // Discard everything before <thinking>
+        if start_idx > 0 {
+             tracing::trace!("Discarding pre-thought content: {:?}", &self.buffer[..start_idx]);
+        }
+        self.buffer = self.buffer[start_idx + 10..].to_string();
+        self.in_thinking_block = true;
+    }
+    
+    fn handle_response_start(&mut self, start_idx: usize) {
+        // Discard everything before <RESPONSE>
+        if start_idx > 0 {
+             tracing::trace!("Discarding pre-response content: {:?}", &self.buffer[..start_idx]);
+        }
+        self.buffer = self.buffer[start_idx + 10..].to_string();
+        self.in_response_block = true;
+    }
+
+    fn has_partial_tag(&self) -> bool {
+        let tags = ["<thinking>", "<RESPONSE>"];
+        for tag in tags {
+            for i in (1..tag.len()).rev() {
+                if self.buffer.ends_with(&tag[..i]) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+    
+    fn flush(&mut self) -> Option<String> {
+        // If we are left with content in the buffer...
+        
+        if self.in_thinking_block {
+             tracing::warn!("Stream ended inside thinking block.");
+             return None;
+        }
+        
+        if self.in_response_block {
+            // responding ended without closing tag?
+            tracing::warn!("Stream ended inside response block (missing </RESPONSE>). Emitting rest.");
+            let content = self.buffer.clone();
+            self.buffer.clear();
+            return if content.is_empty() { None } else { Some(content) };
+        }
+        
+        // If we are in neutral mode and have buffer...
+        if !self.buffer.is_empty() {
+            // We never found a tag. This is the "Fallback" scenario where model forgot tags entirely.
+            // We should assume the whole buffer was the response.
+            tracing::warn!("Stream ended without ANY tags. Emitting full buffer as fallback.");
+            let content = self.buffer.clone();
+            self.buffer.clear();
+            return Some(content);
+        }
+        
+        None
+    }
+}
+
 async fn generate_response(
     sidecar: &sidecar::SidecarHandle,
     messages: Vec<serde_json::Value>,
@@ -314,6 +606,8 @@ async fn generate_response(
     message_id: &str,
     stop_sequences: Option<Vec<String>>,
 ) -> Result<String, GenerationError> {
+    tracing::info!("Starting generation for msg {}, max_tokens: {}", message_id, max_tokens);
+    
     let mut stream = sidecar::generate_stream(
         sidecar,
         messages,
@@ -321,32 +615,68 @@ async fn generate_response(
         max_tokens,
         cancel_token,
         stop_sequences,
-    ).await.map_err(|e| GenerationError::Error(e.to_string()))?;
+    ).await.map_err(|e| {
+        tracing::error!("Failed to start generation stream: {}", e);
+        GenerationError::Error(e.to_string())
+    })?;
     
     let mut full_content = String::new();
+    let mut internal_full_content = String::new();
+    let mut filter = TokenFilter::new();
     
     while let Some(event) = stream.recv().await {
         match event {
             GenerationEvent::Token(token) => {
-                full_content.push_str(&token);
+                internal_full_content.push_str(&token);
                 
-                // Emit token event
-                let _ = app_handle.emit("chat:token", ChatTokenEvent {
-                    conversation_id: conversation_id.to_string(),
-                    message_id: message_id.to_string(),
-                    token,
-                });
+                let visible_tokens = filter.process(&token);
+                for visible in visible_tokens {
+                    if !visible.is_empty() {
+                        full_content.push_str(&visible);
+                        // Emit token event
+                        let _ = app_handle.emit("chat:token", ChatTokenEvent {
+                            conversation_id: conversation_id.to_string(),
+                            message_id: message_id.to_string(),
+                            token: visible,
+                        });
+                    }
+                }
             }
             GenerationEvent::Done => {
+                tracing::info!("Generation Done event received.");
+                if let Some(final_chunk) = filter.flush() {
+                    if !final_chunk.is_empty() {
+                         tracing::debug!("Flushing final chunk: {}", final_chunk);
+                         full_content.push_str(&final_chunk);
+                         let _ = app_handle.emit("chat:token", ChatTokenEvent {
+                            conversation_id: conversation_id.to_string(),
+                            message_id: message_id.to_string(),
+                            token: final_chunk,
+                        });
+                    }
+                }
                 break;
             }
             GenerationEvent::Cancelled => {
+                tracing::info!("Generation Cancelled event received.");
                 return Err(GenerationError::Cancelled);
             }
             GenerationEvent::Error(e) => {
+                tracing::error!("Generation Error event: {}", e);
                 return Err(GenerationError::Error(e));
             }
         }
+    }
+    
+    if full_content.is_empty() {
+        if !internal_full_content.is_empty() {
+            tracing::warn!("Generated content was filtered out entirely! Raw length: {}, Raw start: {:.50}", 
+                internal_full_content.len(), internal_full_content);
+        } else {
+             tracing::warn!("Generated content was completely empty (no tokens received).");
+        }
+    } else {
+        tracing::info!("Generation complete. Final length: {}", full_content.len());
     }
     
     Ok(full_content)

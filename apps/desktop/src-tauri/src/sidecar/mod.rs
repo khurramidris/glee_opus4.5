@@ -173,9 +173,10 @@ pub async fn start_sidecar(
         .arg("--n-gpu-layers").arg(gpu_layers.to_string())
         .arg("--parallel").arg("1")
         .arg("--cont-batching")
-        .arg("--flash-attn")
+        .arg("--flash-attn").arg("auto")
         .arg("-ctk").arg("q8_0")
-        .arg("-v")
+        .arg("--embeddings")
+        // .arg("-v") // Reduced verbosity to prevent pipe blocking and log spam
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
@@ -191,16 +192,28 @@ pub async fn start_sidecar(
             use tokio::io::{AsyncBufReadExt, BufReader};
             let mut reader = BufReader::new(stdout).lines();
             while let Ok(Some(line)) = reader.next_line().await {
+                 // Keep stdout at debug/trace level as it's mostly internal server info
+                if line.len() > 500 {
+                    tracing::trace!("[llama-server stdout] (Truncated) {:.100}...", line);
+                    continue;
+                }
                 tracing::debug!("[llama-server stdout] {}", line);
             }
         });
     }
     
     if let Some(stderr) = child.stderr.take() {
+        let app_handle = app_handle.clone();
         tokio::spawn(async move {
             use tokio::io::{AsyncBufReadExt, BufReader};
             let mut reader = BufReader::new(stderr).lines();
             while let Ok(Some(line)) = reader.next_line().await {
+                // Filter out massive embedding logs from verbose output to prevent console flooding
+                if line.len() > 500 && (line.contains("log_server") || line.contains("embedding") || line.contains("response:")) {
+                    tracing::trace!("[llama-server] (Truncated huge log) {:.100}...", line);
+                    continue;
+                }
+
                 // Detect critical GPU/CPU errors for user feedback
                 if line.contains("out of memory") || line.contains("CUDA error") || 
                    line.contains("VRAM") || line.contains("cudaMalloc") {
@@ -208,11 +221,49 @@ pub async fn start_sidecar(
                 } else if line.contains("illegal instruction") || line.contains("SIGILL") {
                     tracing::error!("[llama-server] CPU INCOMPATIBLE: {}. This CPU may not support required instructions. Try CPU-only build.", line);
                 } else if line.contains("error") || line.contains("Error") || line.contains("ERROR") {
-                    tracing::error!("[llama-server] {}", line);
+                    // Filter out expected "Loading model" 503 errors which are normal during startup
+                    if line.contains("Loading model") && line.contains("503") {
+                        tracing::debug!("[llama-server] (Expected during load) {}", line);
+                    } else if line.contains("error decoding response body") {
+                        // This is a common harmless error at the end of streams
+                        tracing::debug!("[llama-server] (Stream end) {}", line);
+                    } else {
+                        tracing::error!("[llama-server] {}", line);
+                    }
                 } else if line.contains("warn") || line.contains("WARN") {
                     tracing::warn!("[llama-server] {}", line);
+                } else if line.contains("load_tensors") || 
+                          line.contains("create_tensor") || 
+                          line.contains("llama_kv_cache") || 
+                          line.contains("llama_model_loader") ||
+                          line.contains("model_loader") ||
+                          line.contains("llama_new_context_with_model") {
+                    // Deprioritize verbose loading logs
+                    tracing::trace!("[llama-server] {}", line);
+                } else if line.contains("prompt processing progress") {
+                    // Extract progress and emit event
+                    if let Some(pos) = line.find("progress = ") {
+                        let progress_str = &line[pos + 11..];
+                        if let Ok(progress) = progress_str.parse::<f32>() {
+                            let percent = (progress * 100.0) as i32;
+                            let _ = app_handle.emit("model:processing", serde_json::json!({
+                                "progress": percent,
+                                "message": "Processing conversation context..."
+                            }));
+                        }
+                    }
+                    tracing::trace!("[llama-server] {}", line);
+                } else if line.contains("GET /health") || 
+                          line.contains("response: {\"status\":\"ok\"}") || 
+                          line.contains("all tasks already finished") ||
+                          line.contains("slot ") || // Reduce slot update noise
+                          line.contains("update_slots") ||
+                          line.contains("streamed chunk") { 
+                    // Ignore repetitive health check, status, and streaming logs
+                    tracing::trace!("[llama-server] {}", line);
                 } else {
-                    tracing::info!("[llama-server] {}", line);
+                    // Default to DEBUG instead of INFO to quiet down the console
+                    tracing::debug!("[llama-server] {}", line);
                 }
             }
         });
@@ -481,11 +532,14 @@ pub async fn generate_stream(
                     break;
                 }
                 
-                chunk = stream.next() => {
-                    match chunk {
-                        Some(Ok(bytes)) => {
+                // Add timeout to stall detection (15s)
+                result = tokio::time::timeout(std::time::Duration::from_secs(15), stream.next()) => {
+                    match result {
+                        Ok(chunk) => {
+                             match chunk {
+                                Some(Ok(bytes)) => {
                             chunk_count += 1;
-                            if chunk_count % 10 == 0 {
+                            if chunk_count % 100 == 0 { // Reduced debug frequency
                                 tracing::debug!("Received chunk #{}, size: {} bytes", chunk_count, bytes.len());
                             }
                             buffer.extend_from_slice(&bytes);
@@ -525,7 +579,6 @@ pub async fn generate_stream(
                                                 {
                                                     if !content.is_empty() {
                                                         token_count += 1;
-                                                        // if token_count % 10 == 0 { tracing::debug!("Generated {} tokens", token_count); }
                                                         if tx.send(GenerationEvent::Token(content.to_string())).await.is_err() {
                                                             return;
                                                         }
@@ -554,8 +607,19 @@ pub async fn generate_stream(
                             }
                         }
                         Some(Err(e)) => {
-                            tracing::error!("Stream error: {}", e);
-                            let _ = tx.send(GenerationEvent::Error(e.to_string())).await;
+                            let err_msg = e.to_string();
+                            // Handle "error decoding response body" specifically
+                            // This often happens at the very end of the stream with llama-server
+                            if err_msg.contains("error decoding response body") {
+                                if token_count > 0 {
+                                    tracing::debug!("Stream decoding error after {} tokens. Assuming stream complete. Error: {}", token_count, err_msg);
+                                    let _ = tx.send(GenerationEvent::Done).await;
+                                    break;
+                                }
+                            }
+                            
+                            tracing::error!("Stream error: {}", err_msg);
+                            let _ = tx.send(GenerationEvent::Error(err_msg)).await;
                             break;
                         }
                         None => {
@@ -564,6 +628,13 @@ pub async fn generate_stream(
                             break;
                         }
                     }
+                }
+                Err(_) => {
+                    tracing::error!("Generation stalled (no data for 15s)");
+                    let _ = tx.send(GenerationEvent::Error("Generation stalled: No data received from model for 15 seconds".to_string())).await;
+                    break;
+                }
+            }
                 }
             }
         }

@@ -630,17 +630,39 @@ impl MemoryService {
         // ====== Tier 1: Build System Prompt ======
         let mut system_parts = Vec::new();
         
-        // Character Identity
-        if !character.system_prompt.is_empty() {
-            system_parts.push(character.system_prompt.clone());
-        } else {
-            let mut p = format!("You are {}.", character.name);
-            if !character.description.is_empty() { p.push_str(&format!("\n{}", character.description)); }
-            if !character.personality.is_empty() { p.push_str(&format!("\nPersonality: {}", character.personality)); }
-            system_parts.push(p);
+        // --- START NEW PROMPT FORMAT ---
+        // Format:
+        // Character: [Name]
+        // Tags: [Tags]
+        // Personality: [Personality]
+        // Scenario: [Scenario]
+        // [Description/Body]
+        // 
+        // Take the role of [Name]. You must engage in a roleplay conversation with {{user}}...
+
+        // 1. Character Name
+        system_parts.push(format!("Character: {}", character.name));
+
+        // 2. Tags
+        if !character.tags.is_empty() {
+             system_parts.push(format!("Tags: {}", character.tags.join(", ")));
         }
-        
-        // Persona
+
+        // 3. Personality
+        if !character.personality.is_empty() {
+             system_parts.push(format!("Personality: {}", character.personality));
+        }
+
+        // 4. Description and Scenario extraction
+        // Users might have put "Scenario: ..." inside the description, so we try to handle that cleanly.
+        // But ideally, if there is a separate scenario field, we use it (not currently in Character entity, 
+        // it seems merged into description in import_card).
+        // Let's assume description contains everything else.
+        if !character.description.is_empty() {
+             system_parts.push(character.description.clone());
+        }
+
+        // 5. Persona (User Context)
         if let Some(p) = &persona {
             if !p.description.is_empty() {
                 system_parts.push(format!("User persona: {}", p.description));
@@ -717,7 +739,15 @@ impl MemoryService {
             system_parts.push(format!("Examples:\n{}", character.example_dialogues));
         }
         
-        // Assemble final system prompt
+        // MANDATORY INSTRUCTION
+        let user_name = persona.map(|p| p.name).unwrap_or("User".to_string());
+        let mandatory_instruction = format!(
+            "Take the role of {}. You must engage in a roleplay conversation with {{user}}. Do not write {{user}}'s dialogue. Respond from {}'s perspective, embodying her personality and knowledge.", 
+            character.name, character.name
+        );
+        system_parts.push(mandatory_instruction);
+
+        // Assemble final system prompt (preserving lorebook position logic)
         let mut final_parts = Vec::new();
         final_parts.extend(before_sys);
         final_parts.extend(system_parts);
@@ -743,7 +773,7 @@ impl MemoryService {
             system_prompt: final_system,
             messages: history,
             character_name: character.name.clone(),
-            persona_name: persona.map(|p| p.name).unwrap_or("User".into()),
+            persona_name: user_name,
             total_tokens: sys_tokens + history_tokens,
         })
     }
@@ -786,18 +816,36 @@ impl MemoryService {
         
         // ====== Tier 1: Build System Prompt ======
         let mut system_parts = Vec::new();
-        
-        // Character Identity
-        if !character.system_prompt.is_empty() {
-            system_parts.push(character.system_prompt.clone());
-        } else {
-            let mut p = format!("You are {}.", character.name);
-            if !character.description.is_empty() { p.push_str(&format!("\n{}", character.description)); }
-            if !character.personality.is_empty() { p.push_str(&format!("\nPersonality: {}", character.personality)); }
-            system_parts.push(p);
+
+        // --- START NEW PROMPT FORMAT ---
+        // Format:
+        // Character: [Name]
+        // Tags: [Tags]
+        // Personality: [Personality]
+        // Scenario: [Scenario]
+        // [Description/Body]
+        // 
+        // Take the role of [Name]. You must engage in a roleplay conversation with {{user}}...
+
+        // 1. Character Name
+        system_parts.push(format!("Character: {}", character.name));
+
+        // 2. Tags
+        if !character.tags.is_empty() {
+             system_parts.push(format!("Tags: {}", character.tags.join(", ")));
         }
-        
-        // Persona
+
+        // 3. Personality
+        if !character.personality.is_empty() {
+             system_parts.push(format!("Personality: {}", character.personality));
+        }
+
+        // 4. Description and Scenario
+        if !character.description.is_empty() {
+             system_parts.push(character.description.clone());
+        }
+
+        // 5. Persona (User Context)
         if let Some(p) = &persona {
             if !p.description.is_empty() {
                 system_parts.push(format!("User persona: {}", p.description));
@@ -877,6 +925,14 @@ impl MemoryService {
             system_parts.push(format!("Examples:\n{}", character.example_dialogues));
         }
         
+        // MANDATORY INSTRUCTION
+        let user_name = persona.map(|p| p.name).unwrap_or("User".to_string());
+        let mandatory_instruction = format!(
+            "Take the role of {}. You must engage in a roleplay conversation with {{user}}. Do not write {{user}}'s dialogue. Respond from {}'s perspective, embodying her personality and knowledge.", 
+            character.name, character.name
+        );
+        system_parts.push(mandatory_instruction);
+
         // Assemble final system prompt
         let mut final_parts = Vec::new();
         final_parts.extend(before_sys);
@@ -903,7 +959,7 @@ impl MemoryService {
             system_prompt: final_system,
             messages: history,
             character_name: character.name.clone(),
-            persona_name: persona.map(|p| p.name).unwrap_or("User".into()),
+            persona_name: user_name,
             total_tokens: sys_tokens + history_tokens,
         })
     }
