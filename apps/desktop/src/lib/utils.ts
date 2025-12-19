@@ -201,64 +201,43 @@ export function extractPngChunk(buffer: ArrayBuffer): string | null {
 
 /**
  * Parses a response that may contain <thinking> and <RESPONSE> tags.
- * It strictly prefers content within <RESPONSE> tags.
- * If tags are missing or malformed, it attempts to strip <thinking> blocks.
+ * It strips out everything inside <thinking> tags and removes the <RESPONSE> tags.
  */
 export function parseResponse(content: string): string {
   if (!content) return '';
 
-  const lowerContent = content.toLowerCase();
+  let parsed = content;
 
-  // 1. Try to extract content between <RESPONSE> tags (best case)
-  const responseMatch = content.match(/<RESPONSE>([\s\S]*?)<\/RESPONSE>/i);
+  // 1. Handle thinking blocks (even if <thinking> tag is missing)
+  if (parsed.toLowerCase().includes('</thinking>')) {
+    const parts = parsed.split(/<\/thinking>/i);
+    // Everything before the LAST </thinking> is thought process
+    // Actually usually it's the first one, but let's be safe.
+    // If there are multiple, the model is really confused.
+    parsed = parts[parts.length - 1];
+  } else {
+    // Standard replacement for well-formed blocks
+    parsed = parsed.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
+  }
+
+  // 2. Handle RESPONSE blocks
+  // If <RESPONSE> tags exist, we ONLY want what's inside them.
+  const responseMatch = /<RESPONSE>([\s\S]*?)<\/RESPONSE>/i.exec(parsed);
   if (responseMatch) {
-    return responseMatch[1].trim();
-  }
-
-  // 2. If <RESPONSE> tag is open but not closed, take everything after it
-  const openResponseIndex = lowerContent.lastIndexOf('<response>');
-  if (openResponseIndex !== -1) {
-    return content.slice(openResponseIndex + 10).trim();
-  }
-
-  // 3. Handle cases where </thinking> exists (with or without <thinking> at start)
-  const thinkingEndIndex = lowerContent.lastIndexOf('</thinking>');
-  if (thinkingEndIndex !== -1) {
-    return content.slice(thinkingEndIndex + 11).trim();
-  }
-
-  // 4. Handle cases where <thinking> is open but not closed
-  const thinkingStartIndex = lowerContent.lastIndexOf('<thinking>');
-  if (thinkingStartIndex !== -1) {
-    // If we have an open thinking tag but no close tag, we are still thinking
-    return '';
-  }
-
-  // 5. Fallback for models that might start thinking without any tags
-  // If the content starts with common thinking patterns and has no other tags,
-  // we treat it as thinking content and hide it during streaming.
-  const thinkingPatterns = [
-    'after carefully considering',
-    'after considering',
-    'i understand',
-    'let me consider',
-    'let me think',
-    'i should',
-    'based on the',
-    'considering the',
-  ];
-
-  const trimmed = content.trim();
-  const trimmedLower = trimmed.toLowerCase();
-  
-  if (thinkingPatterns.some(pattern => trimmedLower.startsWith(pattern)) && !trimmedLower.includes('<')) {
-    // Only hide if it's relatively short or we're at the very beginning of the message
-    // to avoid false positives for real character dialogue.
-    if (trimmed.length < 500) {
-      return '';
+    parsed = responseMatch[1];
+  } else {
+    // If only opening <RESPONSE> tag is found, take everything after it
+    const responseStartIdx = parsed.toLowerCase().indexOf('<response>');
+    if (responseStartIdx !== -1) {
+      parsed = parsed.substring(responseStartIdx + 10);
     }
+    // Remove any remaining </RESPONSE> tags
+    parsed = parsed.replace(/<\/RESPONSE>/gi, '');
   }
 
-  // Final cleanup: remove any leftover tags
-  return content.replace(/<\/?RESPONSE>/gi, '').replace(/<\/?thinking>/gi, '').trim();
+  // 3. Heuristic: If there's still a lot of text that looks like model commentary 
+  // (e.g. "This response showcases...", "Let me know if..."), it's hard to filter 
+  // without tags, but we've handled the most common cases now.
+
+  return parsed.trim();
 }
