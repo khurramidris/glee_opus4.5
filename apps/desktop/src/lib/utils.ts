@@ -207,6 +207,8 @@ export function extractPngChunk(buffer: ArrayBuffer): string | null {
 export function parseResponse(content: string): string {
   if (!content) return '';
 
+  const lowerContent = content.toLowerCase();
+
   // 1. Try to extract content between <RESPONSE> tags (best case)
   const responseMatch = content.match(/<RESPONSE>([\s\S]*?)<\/RESPONSE>/i);
   if (responseMatch) {
@@ -214,23 +216,49 @@ export function parseResponse(content: string): string {
   }
 
   // 2. If <RESPONSE> tag is open but not closed, take everything after it
-  const openResponseIndex = content.toLowerCase().lastIndexOf('<response>');
+  const openResponseIndex = lowerContent.lastIndexOf('<response>');
   if (openResponseIndex !== -1) {
     return content.slice(openResponseIndex + 10).trim();
   }
 
-  // 3. Handle cases where </thinking> exists but <thinking> might be missing at the start
-  let parsed = content;
-  const thinkingEndIndex = content.toLowerCase().lastIndexOf('</thinking>');
+  // 3. Handle cases where </thinking> exists (with or without <thinking> at start)
+  const thinkingEndIndex = lowerContent.lastIndexOf('</thinking>');
   if (thinkingEndIndex !== -1) {
-    parsed = content.slice(thinkingEndIndex + 11);
-  } else {
-    // 4. Fallback: Remove everything inside <thinking>...</thinking> if properly tagged
-    parsed = content.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
+    return content.slice(thinkingEndIndex + 11).trim();
+  }
+
+  // 4. Handle cases where <thinking> is open but not closed
+  const thinkingStartIndex = lowerContent.lastIndexOf('<thinking>');
+  if (thinkingStartIndex !== -1) {
+    // If we have an open thinking tag but no close tag, we are still thinking
+    return '';
+  }
+
+  // 5. Fallback for models that might start thinking without any tags
+  // If the content starts with common thinking patterns and has no other tags,
+  // we treat it as thinking content and hide it during streaming.
+  const thinkingPatterns = [
+    'after carefully considering',
+    'after considering',
+    'i understand',
+    'let me consider',
+    'let me think',
+    'i should',
+    'based on the',
+    'considering the',
+  ];
+
+  const trimmed = content.trim();
+  const trimmedLower = trimmed.toLowerCase();
+  
+  if (thinkingPatterns.some(pattern => trimmedLower.startsWith(pattern)) && !trimmedLower.includes('<')) {
+    // Only hide if it's relatively short or we're at the very beginning of the message
+    // to avoid false positives for real character dialogue.
+    if (trimmed.length < 500) {
+      return '';
+    }
   }
 
   // Final cleanup: remove any leftover tags
-  parsed = parsed.replace(/<\/?RESPONSE>/gi, '').replace(/<\/?thinking>/gi, '');
-
-  return parsed.trim();
+  return content.replace(/<\/?RESPONSE>/gi, '').replace(/<\/?thinking>/gi, '').trim();
 }

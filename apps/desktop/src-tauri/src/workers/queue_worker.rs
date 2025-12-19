@@ -454,9 +454,21 @@ impl TokenFilter {
                     self.buffer = self.buffer[end_idx + 11..].to_string();
                     self.in_response_block = false;
                     continue;
+                } else if let Some(think_end_idx) = self.buffer.find("</thinking>") {
+                    // We were in response block but found </thinking>? 
+                    // This means we were actually in a thinking block that didn't have a start tag.
+                    tracing::warn!("Found </thinking> while in response block. Stripping previous 'response' content.");
+                    self.buffer = self.buffer[think_end_idx + 11..].to_string();
+                    self.in_response_block = false;
+                    // Reset output for this batch to avoid emitting </thinking> itself
+                    output.clear();
+                    continue;
                 } else {
                     let potential_tag = "</RESPONSE>";
-                    let keep_len = self.get_partial_tag_len(potential_tag);
+                    let keep_len_resp = self.get_partial_tag_len(potential_tag);
+                    let keep_len_think = self.get_partial_tag_len("</thinking>");
+                    let keep_len = keep_len_resp.max(keep_len_think);
+                    
                     let emit_len = self.buffer.len().saturating_sub(keep_len);
                     if emit_len > 0 {
                         let content = self.buffer[..emit_len].to_string();
@@ -486,8 +498,24 @@ impl TokenFilter {
                         } else {
                             // If we have a significant amount of text and NO leakage and NO tags,
                             // it might be a model that doesn't use tags.
-                            // BUT wait, we should only do this if we haven't seen leakage.
-                            if self.buffer.len() > 100 {
+                            // BUT wait, check if it looks like thinking content first.
+                            let thinking_patterns = [
+                                "after carefully considering",
+                                "after considering",
+                                "i understand",
+                                "let me consider",
+                                "i should",
+                                "considering the",
+                                "based on",
+                            ];
+                            
+                            let lower_buf = self.buffer.to_lowercase();
+                            let trimmed_lower = lower_buf.trim_start();
+                            let looks_like_thinking = thinking_patterns.iter().any(|p| trimmed_lower.startsWith(p));
+                            
+                            let threshold = if looks_like_thinking { 500 } else { 100 };
+
+                            if self.buffer.len() > threshold {
                                 // Implicit response start
                                 self.in_response_block = true;
                                 continue;
