@@ -1,6 +1,6 @@
 import { useState, memo } from 'react';
 import type { Message } from '@/types';
-import { cn } from '@/lib/utils';
+import { cn, parseResponse } from '@/lib/utils';
 import { BranchNavigator } from './BranchNavigator';
 import { MessageActions } from './MessageActions';
 
@@ -153,11 +153,12 @@ export const MessageBubble = memo(function MessageBubble({
                 </button>
               </div>
             </div>
-          ) : (
-            <p className="whitespace-pre-wrap break-words leading-relaxed text-[15px]">
-              {message.content}
-            </p>
-          )}
+            ) : (
+              <p className="whitespace-pre-wrap break-words leading-relaxed text-[15px]">
+                {parseResponse(message.content)}
+              </p>
+            )}
+
         </div>
 
         {/* Timestamp */}

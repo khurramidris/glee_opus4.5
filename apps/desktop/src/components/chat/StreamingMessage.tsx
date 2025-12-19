@@ -1,4 +1,5 @@
 import { Avatar } from '@/components/ui/Avatar';
+import { parseResponse } from '@/lib/utils';
 
 interface StreamingMessageProps {
   content: string;
@@ -22,10 +23,11 @@ export function StreamingMessage({
           <div className="text-xs font-semibold mb-1.5 text-primary-600">
             {characterName}
           </div>
-          <p className="whitespace-pre-wrap break-words leading-relaxed text-sm">
-            {content}
-            <span className="inline-block w-2 h-4 ml-1 align-middle bg-primary-500 animate-blink rounded-sm" />
-          </p>
+            <p className="whitespace-pre-wrap break-words leading-relaxed text-sm">
+              {parseResponse(content)}
+              <span className="inline-block w-2 h-4 ml-1 align-middle bg-primary-500 animate-blink rounded-sm" />
+            </p>
+
         </div>
       </div>
     </div>

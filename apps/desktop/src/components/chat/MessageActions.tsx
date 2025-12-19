@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from '@/lib/utils';
+import { cn, parseResponse } from '@/lib/utils';
 import { useUIStore } from '@/stores/uiStore';
 
 interface MessageActionsProps {
@@ -20,15 +20,16 @@ export function MessageActions({
 }: MessageActionsProps) {
   const { addToast } = useUIStore();
 
-  const handleCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(content);
-      addToast({ type: 'success', message: 'Copied to clipboard' });
-    } catch (e) {
-      console.error(e);
-      addToast({ type: 'error', message: 'Failed to copy text' });
-    }
-  }, [content, addToast]);
+    const handleCopy = useCallback(async () => {
+      try {
+        await navigator.clipboard.writeText(parseResponse(content));
+        addToast({ type: 'success', message: 'Copied to clipboard' });
+      } catch (e) {
+        console.error(e);
+        addToast({ type: 'error', message: 'Failed to copy text' });
+      }
+    }, [content, addToast]);
+
 
   return (
     <AnimatePresence>

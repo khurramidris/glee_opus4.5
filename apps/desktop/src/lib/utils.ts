@@ -198,3 +198,19 @@ export function extractPngChunk(buffer: ArrayBuffer): string | null {
   console.warn('[extractPngChunk] No chara chunk found in PNG');
   return null;
 }
+
+/**
+ * Parses a response that may contain <thinking> and <RESPONSE> tags.
+ * It strips out everything inside <thinking> tags and removes the <RESPONSE> tags.
+ */
+export function parseResponse(content: string): string {
+  if (!content) return '';
+
+  // Remove everything inside <thinking>...</thinking> (including tags)
+  let parsed = content.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
+
+  // Remove <RESPONSE> and </RESPONSE> tags themselves but keep content
+  parsed = parsed.replace(/<\/?RESPONSE>/gi, '');
+
+  return parsed.trim();
+}
