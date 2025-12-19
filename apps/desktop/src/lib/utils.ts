@@ -201,16 +201,36 @@ export function extractPngChunk(buffer: ArrayBuffer): string | null {
 
 /**
  * Parses a response that may contain <thinking> and <RESPONSE> tags.
- * It strips out everything inside <thinking> tags and removes the <RESPONSE> tags.
+ * It strictly prefers content within <RESPONSE> tags.
+ * If tags are missing or malformed, it attempts to strip <thinking> blocks.
  */
 export function parseResponse(content: string): string {
   if (!content) return '';
 
-  // Remove everything inside <thinking>...</thinking> (including tags)
-  let parsed = content.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
+  // 1. Try to extract content between <RESPONSE> tags (best case)
+  const responseMatch = content.match(/<RESPONSE>([\s\S]*?)<\/RESPONSE>/i);
+  if (responseMatch) {
+    return responseMatch[1].trim();
+  }
 
-  // Remove <RESPONSE> and </RESPONSE> tags themselves but keep content
-  parsed = parsed.replace(/<\/?RESPONSE>/gi, '');
+  // 2. If <RESPONSE> tag is open but not closed, take everything after it
+  const openResponseIndex = content.toLowerCase().lastIndexOf('<response>');
+  if (openResponseIndex !== -1) {
+    return content.slice(openResponseIndex + 10).trim();
+  }
+
+  // 3. Handle cases where </thinking> exists but <thinking> might be missing at the start
+  let parsed = content;
+  const thinkingEndIndex = content.toLowerCase().lastIndexOf('</thinking>');
+  if (thinkingEndIndex !== -1) {
+    parsed = content.slice(thinkingEndIndex + 11);
+  } else {
+    // 4. Fallback: Remove everything inside <thinking>...</thinking> if properly tagged
+    parsed = content.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
+  }
+
+  // Final cleanup: remove any leftover tags
+  parsed = parsed.replace(/<\/?RESPONSE>/gi, '').replace(/<\/?thinking>/gi, '');
 
   return parsed.trim();
 }
