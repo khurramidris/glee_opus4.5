@@ -11,6 +11,7 @@ use crate::repositories::*;
 use crate::error::{AppError, AppResult};
 use crate::setup::paths::AppPaths;
 use crate::state::AppState;
+use rusqlite::params;
 
 pub use embeddings::EmbeddingService;
 pub use memory::{MemoryService as LongTermMemoryService, MemoryEntry, SummaryService, ConversationSummary};
@@ -297,6 +298,19 @@ impl ConversationService {
     
     pub fn find_by_character(db: &Database, character_id: &str) -> AppResult<Option<Conversation>> {
         ConversationRepo::find_by_single_character(db, character_id)
+    }
+
+    pub fn clear_messages(db: &Database, conversation_id: &str) -> AppResult<()> {
+        ConversationRepo::find_by_id(db, conversation_id)?;
+        MessageRepo::delete_all_for_conversation(db, conversation_id)?;
+        
+        // Reset active_message_id in conversation
+        db.execute(
+            "UPDATE conversations SET active_message_id = NULL WHERE id = ?1",
+            params![conversation_id],
+        )?;
+        
+        Ok(())
     }
 }
 

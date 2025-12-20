@@ -60,3 +60,11 @@ pub async fn find_conversation_by_character(
 ) -> Result<Option<Conversation>, AppError> {
     ConversationService::find_by_character(&state.db, &character_id)
 }
+
+#[tauri::command]
+pub async fn clear_conversation_messages(
+    state: State<'_, AppState>,
+    conversation_id: String,
+) -> Result<(), AppError> {
+    ConversationService::clear_messages(&state.db, &conversation_id)
+}

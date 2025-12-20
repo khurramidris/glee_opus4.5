@@ -1,7 +1,10 @@
+import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { Character } from '@/types';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
+import { Modal } from '@/components/ui/Modal';
+import { Button } from '@/components/ui/Button';
 import { useChatStore } from '@/stores/chatStore';
 import { cn } from '@/lib/utils';
 
@@ -13,20 +16,22 @@ export function CharacterInfoPanel({ character }: CharacterInfoPanelProps) {
     const navigate = useNavigate();
     const { conversationId } = useParams<{ conversationId: string }>();
     const clearMessages = useChatStore((s) => s.clearMessages);
+    const [isClearModalOpen, setIsClearModalOpen] = useState(false);
 
     const handleEditCharacter = () => {
         navigate(`/characters/${character.id}/edit`);
     };
 
-    const handleViewHistory = () => {
-        // TODO: Implement view history
+
+    const handleClearChat = () => {
+        if (!conversationId) return;
+        setIsClearModalOpen(true);
     };
 
-    const handleClearChat = async () => {
+    const confirmClear = async () => {
         if (!conversationId) return;
-        if (confirm('Are you sure you want to clear this chat?')) {
-            clearMessages(conversationId);
-        }
+        await clearMessages(conversationId);
+        setIsClearModalOpen(false);
     };
 
     const InfoSection = ({
@@ -111,13 +116,37 @@ export function CharacterInfoPanel({ character }: CharacterInfoPanelProps) {
                 <ActionButton onClick={handleEditCharacter} icon="edit">
                     Edit Character
                 </ActionButton>
-                <ActionButton onClick={handleViewHistory} icon="history">
-                    View History
-                </ActionButton>
                 <ActionButton onClick={handleClearChat} icon="clear" variant="danger">
                     Clear Chat
                 </ActionButton>
             </div>
+
+            <Modal
+                isOpen={isClearModalOpen}
+                onClose={() => setIsClearModalOpen(false)}
+                title="Clear Chat History"
+                size="sm"
+            >
+                <div className="space-y-4">
+                    <p className="text-sm text-surface-500">
+                        Are you sure you want to clear your chat history with <span className="text-white font-medium">{character.name}</span>? This action cannot be undone.
+                    </p>
+                    <div className="flex justify-end gap-3 mt-6">
+                        <Button
+                            variant="secondary"
+                            onClick={() => setIsClearModalOpen(false)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="danger"
+                            onClick={confirmClear}
+                        >
+                            Clear History
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 }

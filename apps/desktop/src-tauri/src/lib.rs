@@ -104,6 +104,7 @@ pub fn run() {
             crate::commands::conversation::delete_conversation,
             crate::commands::conversation::get_conversation_messages,
             crate::commands::conversation::find_conversation_by_character,
+            crate::commands::conversation::clear_conversation_messages,
             // Message commands
             crate::commands::message::send_message,
             crate::commands::message::regenerate_message,

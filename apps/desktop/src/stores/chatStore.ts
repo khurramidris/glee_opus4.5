@@ -17,7 +17,7 @@ interface ChatState {
   isGenerating: boolean;
   pendingSend: boolean;
   _updateCounter: number;
-  
+
   loadConversation: (id: string) => Promise<void>;
   sendMessage: (content: string) => Promise<Message | null>;
   regenerateMessage: (messageId: string) => Promise<void>;
@@ -48,20 +48,20 @@ export const useChatStore = create<ChatState>()(
     _updateCounter: 0,
 
     loadConversation: async (id) => {
-      set({ 
-        isLoading: true, 
-        error: null, 
+      set({
+        isLoading: true,
+        error: null,
         streamingMessages: {},
         isGenerating: false,
         pendingSend: false,
       });
-      
+
       try {
         const [conversation, messages] = await Promise.all([
           commands.getConversation(id),
           commands.getConversationMessages(id),
         ]);
-        
+
         set((state) => {
           state.conversation = conversation;
           state.messages = messages;
@@ -76,24 +76,24 @@ export const useChatStore = create<ChatState>()(
 
     sendMessage: async (content) => {
       const { conversation, pendingSend, isGenerating } = get();
-      
+
       if (!conversation || pendingSend || isGenerating) {
         return null;
       }
-      
+
       const trimmedContent = content.trim();
       if (!trimmedContent) {
         return null;
       }
-      
+
       set({ pendingSend: true, error: null });
-      
+
       try {
         const message = await commands.sendMessage({
           conversationId: conversation.id,
           content: trimmedContent,
         });
-        
+
         const currentState = get();
         set({
           messages: [...currentState.messages, message],
@@ -101,7 +101,7 @@ export const useChatStore = create<ChatState>()(
           pendingSend: false,
           _updateCounter: currentState._updateCounter + 1,
         });
-        
+
         return message;
       } catch (e) {
         console.error('[ChatStore] Send error:', e);
@@ -112,11 +112,11 @@ export const useChatStore = create<ChatState>()(
 
     regenerateMessage: async (messageId) => {
       const { isGenerating } = get();
-      
+
       if (isGenerating) {
         await get().stopGeneration();
       }
-      
+
       try {
         await commands.regenerateMessage(messageId);
         set((state) => {
@@ -124,7 +124,7 @@ export const useChatStore = create<ChatState>()(
           state.error = null;
           state._updateCounter++;
         });
-        
+
         const { conversation } = get();
         if (conversation) {
           const messages = await commands.getConversationMessages(conversation.id);
@@ -145,10 +145,10 @@ export const useChatStore = create<ChatState>()(
         set({ error: 'Message cannot be empty' });
         return null;
       }
-      
+
       try {
         const message = await commands.editMessage({ messageId, content: trimmedContent });
-        
+
         const { conversation } = get();
         if (conversation) {
           const messages = await commands.getConversationMessages(conversation.id);
@@ -159,7 +159,7 @@ export const useChatStore = create<ChatState>()(
             state._updateCounter++;
           });
         }
-        
+
         return message;
       } catch (e) {
         console.error('[ChatStore] Edit error:', e);
@@ -187,7 +187,7 @@ export const useChatStore = create<ChatState>()(
         if (get().isGenerating) {
           await get().stopGeneration();
         }
-        
+
         const messages = await commands.switchBranch(messageId);
         set((state) => {
           state.messages = messages;
@@ -207,14 +207,14 @@ export const useChatStore = create<ChatState>()(
     appendStreamToken: (messageId, token) => {
       const currentState = get();
       const currentStreaming = currentState.streamingMessages[messageId];
-      
+
       const newStreaming = {
         ...currentState.streamingMessages,
         [messageId]: currentStreaming
           ? { ...currentStreaming, content: currentStreaming.content + token }
           : { content: token, startedAt: Date.now() },
       };
-      
+
       set({
         streamingMessages: newStreaming,
         _updateCounter: currentState._updateCounter + 1,
@@ -223,18 +223,18 @@ export const useChatStore = create<ChatState>()(
 
     finalizeStreamMessage: (message) => {
       const currentState = get();
-      
+
       const { [message.id]: _, ...newStreaming } = currentState.streamingMessages;
-      
+
       const index = currentState.messages.findIndex((m) => m.id === message.id);
       const newMessages = index !== -1
         ? [
-            ...currentState.messages.slice(0, index),
-            message,
-            ...currentState.messages.slice(index + 1),
-          ]
+          ...currentState.messages.slice(0, index),
+          message,
+          ...currentState.messages.slice(index + 1),
+        ]
         : [...currentState.messages, message];
-      
+
       set({
         streamingMessages: newStreaming,
         isGenerating: false,
@@ -245,7 +245,7 @@ export const useChatStore = create<ChatState>()(
 
     handleStreamError: (messageId, error) => {
       console.error('[ChatStore] Stream error:', error);
-      
+
       set((state) => {
         if (messageId) {
           const newStreaming = { ...state.streamingMessages };
@@ -277,33 +277,40 @@ export const useChatStore = create<ChatState>()(
       });
     },
 
-    clearMessages: (conversationId) => {
-      const { conversation } = get();
-      if (conversation && conversation.id === conversationId) {
-        set({
-          messages: [],
-          streamingMessages: {},
-          isGenerating: false,
-          pendingSend: false,
-          _updateCounter: get()._updateCounter + 1,
-        });
+    clearMessages: async (conversationId) => {
+      try {
+        await commands.clearConversationMessages(conversationId);
+
+        const { conversation } = get();
+        if (conversation && conversation.id === conversationId) {
+          set({
+            messages: [],
+            streamingMessages: {},
+            isGenerating: false,
+            pendingSend: false,
+            _updateCounter: get()._updateCounter + 1,
+          });
+        }
+      } catch (e) {
+        console.error('[ChatStore] Clear messages error:', e);
+        set({ error: String(e) });
       }
     },
 
     clearStaleStreams: () => {
       const now = Date.now();
       const { streamingMessages } = get();
-      
+
       const staleIds = Object.entries(streamingMessages)
         .filter(([_, stream]) => now - stream.startedAt > STREAM_STALE_TIMEOUT)
         .map(([id]) => id);
-      
+
       if (staleIds.length > 0) {
         set((state) => {
           const newStreaming = { ...state.streamingMessages };
           staleIds.forEach((id) => delete newStreaming[id]);
           state.streamingMessages = newStreaming;
-          
+
           if (Object.keys(newStreaming).length === 0) {
             state.isGenerating = false;
           }

@@ -36,7 +36,7 @@ export function ChatHeader({ conversation }: ChatHeaderProps) {
         {/* Title */}
         <div className="min-w-0">
           <h1 className="text-base font-semibold text-white truncate font-display">
-            Chat with {title}
+            {title.toLowerCase().startsWith('chat with') ? title : `Chat with ${title}`}
           </h1>
         </div>
       </div>

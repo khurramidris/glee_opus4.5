@@ -860,6 +860,11 @@ impl MessageRepo {
         db.execute("DELETE FROM messages WHERE id = ?1", params![id])?;
         Ok(())
     }
+
+    pub fn delete_all_for_conversation(db: &Database, conversation_id: &str) -> AppResult<()> {
+        db.execute("DELETE FROM messages WHERE conversation_id = ?1", params![conversation_id])?;
+        Ok(())
+    }
     
     /// Count siblings for all messages in a conversation (Efficiency Boost)
     pub fn count_all_siblings(db: &Database, conversation_id: &str) -> AppResult<HashMap<String, i32>> {

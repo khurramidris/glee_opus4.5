@@ -98,6 +98,9 @@ export const commands = {
   findConversationByCharacter: (characterId: string): Promise<Conversation | null> =>
     invokeCommand('find_conversation_by_character', { characterId }),
 
+  clearConversationMessages: (conversationId: string): Promise<void> =>
+    invokeCommand('clear_conversation_messages', { conversationId }),
+
   // ==================== Messages ====================
   sendMessage: (input: SendMessageInput): Promise<Message> =>
     invokeCommand('send_message', { input }),

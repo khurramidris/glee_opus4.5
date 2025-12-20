@@ -75,7 +75,15 @@ export function TitleBar() {
     );
 
     return (
-        <div className="h-9 bg-transparent flex justify-between items-center select-none z-50 flex-shrink-0">
+        <div className="h-9 bg-transparent flex justify-between items-center select-none z-50 flex-shrink-0 px-4">
+            {/* Logo */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center shadow-lg shadow-primary-500/25">
+                    <span className="text-white font-bold text-xs font-display">G</span>
+                </div>
+                <span className="font-bold text-sm text-white font-display tracking-tight">Glee</span>
+            </div>
+
             {/* Drag region */}
             <div className="flex-1 h-full" data-tauri-drag-region />
 
