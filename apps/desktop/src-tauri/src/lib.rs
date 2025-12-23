@@ -78,6 +78,13 @@ pub fn run() {
             });
             
             tracing::info!("Glee setup complete");
+            
+            // Explicitly show the main window after setup is complete
+            if let Some(main_window) = app.get_webview_window("main") {
+                tracing::info!("Showing main window...");
+                let _ = main_window.show();
+            }
+            
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

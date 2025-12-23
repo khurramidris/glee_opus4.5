@@ -176,13 +176,16 @@ pub async fn start_sidecar(
         .arg("--flash-attn").arg("auto")
         .arg("-ctk").arg("q8_0")
         .arg("--embeddings")
+        // Note: This GRPO model uses <thinking> and <RESPONSE> tags intentionally
+        // Our TokenFilter handles stripping <thinking> and extracting <RESPONSE>
         // .arg("-v") // Reduced verbosity to prevent pipe blocking and log spam
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
     
-    #[cfg(target_os = "windows")]
-    cmd.creation_flags(0x08000000);
+    // BETA: Console visible for debugging - re-enable for production
+    // #[cfg(target_os = "windows")]
+    // cmd.creation_flags(0x08000000);
     
     let mut child = cmd.spawn()
         .map_err(|e| AppError::Sidecar(format!("Failed to start sidecar: {}", e)))?;
@@ -496,6 +499,10 @@ pub async fn generate_stream(
         "max_tokens": max_tokens,
         "stream": true,
         "stop": stop_sequences.iter().collect::<Vec<_>>(),
+        "repeat_penalty": 1.15,      // Penalty for repeating tokens (increased from 1.1)
+        "frequency_penalty": 0.4,    // Penalty based on token frequency (increased from 0.3)
+        "presence_penalty": 0.3,     // NEW: Penalize returning to already-mentioned topics
+        "top_k": 40,                 // Limit token selection for more coherent responses
     });
     
     tracing::info!("Starting generation: {} messages, max_tokens={}", messages.len(), max_tokens);
@@ -659,7 +666,11 @@ pub async fn generate_text_oneshot(
         "temperature": temperature,
         "max_tokens": max_tokens,
         "stream": false,
-        "stop": stop_sequences
+        "stop": stop_sequences,
+        "repeat_penalty": 1.15,      // Penalty for repeating tokens (increased)
+        "frequency_penalty": 0.4,    // Penalty based on token frequency (increased)
+        "presence_penalty": 0.3,     // Penalize returning to already-mentioned topics
+        "top_k": 40,                 // Limit token selection for coherence
     });
 
     let response = client

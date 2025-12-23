@@ -29,10 +29,11 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      /* Refined purple gradient background */
       background: radial-gradient(ellipse at 0% 0%, #581c87 0%, #3b0764 20%, #1e1b4b 50%, #0f172a 100%);
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
       transition: opacity 0.4s ease-out;
+      color: white;
+      overflow: hidden;
     }
 
     #initial-splash.hidden {
@@ -40,16 +41,78 @@
       pointer-events: none;
     }
 
+    /* Animated background glow */
+    #initial-splash .glow-container {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    #initial-splash .glow-1 {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 600px;
+      height: 600px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(168, 85, 247, 0.2) 0%, rgba(147, 51, 234, 0.1) 50%, transparent 100%);
+      filter: blur(80px);
+      animation: pulse-glow 4s ease-in-out infinite;
+    }
+
+    #initial-splash .glow-2 {
+      position: absolute;
+      top: 33%;
+      left: 33%;
+      transform: translate(-50%, -50%);
+      width: 400px;
+      height: 400px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(6, 182, 212, 0.1) 0%, transparent 70%);
+      filter: blur(60px);
+      animation: pulse-glow 4s ease-in-out infinite;
+      animation-delay: 1s;
+    }
+
+    @keyframes pulse-glow {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.5; }
+      50% { transform: translate(-50%, -50%) scale(1.1); opacity: 0.8; }
+    }
+
+    /* Logo and title container */
+    #initial-splash .content {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 3rem;
+    }
+
     /* Logo mark */
+    #initial-splash .logo-mark-container {
+      position: relative;
+      margin-bottom: 1rem;
+    }
+
+    #initial-splash .logo-glow {
+      position: absolute;
+      inset: -1rem;
+      background: linear-gradient(to right, rgba(168, 85, 247, 0.3), rgba(147, 51, 234, 0.3));
+      border-radius: 1rem;
+      filter: blur(20px);
+    }
+
     #initial-splash .logo-mark {
+      position: relative;
       width: 64px;
       height: 64px;
-      background: linear-gradient(135deg, #a855f7 0%, #9333ea 100%);
-      border-radius: 16px;
+      background: linear-gradient(to bottom right, #a855f7, #9333ea);
+      border-radius: 1rem;
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-bottom: 16px;
       box-shadow: 0 20px 40px rgba(168, 85, 247, 0.3);
     }
 
@@ -64,11 +127,10 @@
       font-family: 'Space Grotesk', system-ui, sans-serif;
       font-size: 3rem;
       font-weight: 700;
-      background: linear-gradient(135deg, #d8b4fe 0%, #c084fc 50%, #d8b4fe 100%);
+      background: linear-gradient(to right, #d8b4fe, #e9d5ff, #d8b4fe);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
-      margin-bottom: 0.5rem;
       letter-spacing: -0.025em;
     }
 
@@ -78,41 +140,55 @@
       font-weight: 500;
       letter-spacing: 0.15em;
       text-transform: uppercase;
-      margin-bottom: 3rem;
+      margin-top: 0.5rem;
     }
 
+    /* Progress bar */
     #initial-splash .progress-container {
+      position: relative;
       width: 18rem;
       height: 6px;
       background: rgba(255, 255, 255, 0.1);
       border-radius: 9999px;
       overflow: hidden;
+      backdrop-filter: blur(4px);
+      margin-bottom: 1.5rem;
     }
 
     #initial-splash .progress-bar {
       height: 100%;
-      width: 30%;
-      background: linear-gradient(90deg, #a855f7 0%, #c084fc 50%, #a855f7 100%);
+      width: 100%;
+      background: linear-gradient(90deg, #a855f7, #c084fc, #a855f7);
       border-radius: 9999px;
-      animation: loading 1.5s ease-in-out infinite;
-      box-shadow: 0 0 20px rgba(168, 85, 247, 0.4);
+      box-shadow: 0 0 10px rgba(168, 85, 247, 0.4);
     }
 
-    @keyframes loading {
-      0% {
-        transform: translateX(-100%);
-      }
+    #initial-splash .shimmer {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+      animation: shimmer 2s ease-in-out infinite;
+    }
 
-      100% {
-        transform: translateX(400%);
-      }
+    @keyframes shimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
     }
 
     #initial-splash .status {
       color: rgba(255, 255, 255, 0.5);
       font-size: 0.875rem;
       font-weight: 500;
-      margin-top: 1.5rem;
+    }
+
+    #initial-splash .version {
+      position: absolute;
+      bottom: 1.5rem;
+      color: rgba(255, 255, 255, 0.2);
+      font-size: 0.75rem;
+      font-weight: 500;
     }
   </style>
 </head>
@@ -120,15 +196,30 @@
 <body>
   <!-- Initial splash screen - visible immediately, hidden when React takes over -->
   <div id="initial-splash">
-    <div class="logo-mark">
-      <span>G</span>
+    <!-- Animated background glow -->
+    <div class="glow-container">
+      <div class="glow-1"></div>
+      <div class="glow-2"></div>
     </div>
-    <div class="logo-text">Glee</div>
-    <div class="tagline">AI Character Chat</div>
+
+    <div class="content">
+      <div class="logo-mark-container">
+        <div class="logo-glow"></div>
+        <div class="logo-mark">
+          <span>G</span>
+        </div>
+      </div>
+      <div class="logo-text">Glee</div>
+      <div class="tagline">AI Character Chat</div>
+    </div>
+
     <div class="progress-container">
       <div class="progress-bar"></div>
+      <div class="shimmer"></div>
     </div>
+
     <div class="status">Loading...</div>
+    <div class="version">v0.1.0</div>
   </div>
 
   <div id="root"></div>
@@ -136,13 +227,14 @@
   <script>
     // Hide initial splash when React is ready
     window.addEventListener('DOMContentLoaded', () => {
+      // Small delay to ensure React has actually started rendering
       setTimeout(() => {
         const splash = document.getElementById('initial-splash');
         if (splash) {
           splash.classList.add('hidden');
           setTimeout(() => splash.remove(), 400);
         }
-      }, 100);
+      }, 500); // Increased from 100ms for smoother transition
     });
   </script>
 </body>

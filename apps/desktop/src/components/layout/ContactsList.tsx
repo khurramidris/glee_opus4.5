@@ -113,8 +113,8 @@ export function ContactsList() {
                                 fallback={character.name}
                                 size="md"
                                 className={cn(
-                                    'ring-2 ring-transparent transition-all',
-                                    isActive && 'ring-primary-500/30'
+                                    'ring-2 ring-transparent transition-all duration-300 group-hover:scale-110 group-hover:ring-primary-500/30',
+                                    isActive && 'ring-primary-500/30 glow-primary-sm'
                                 )}
                             />
                             <div className="flex-1 min-w-0">

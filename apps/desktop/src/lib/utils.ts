@@ -208,36 +208,39 @@ export function parseResponse(content: string): string {
 
   let parsed = content;
 
-  // 1. Handle thinking blocks (even if <thinking> tag is missing)
-  if (parsed.toLowerCase().includes('</thinking>')) {
-    const parts = parsed.split(/<\/thinking>/i);
-    // Everything before the LAST </thinking> is thought process
-    // Actually usually it's the first one, but let's be safe.
-    // If there are multiple, the model is really confused.
-    parsed = parts[parts.length - 1];
-  } else {
-    // Standard replacement for well-formed blocks
-    parsed = parsed.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
+  // 1. Handle Thinking State
+  const thinkingStartIdx = parsed.toLowerCase().indexOf('<thinking>');
+  const thinkingEndIdx = parsed.toLowerCase().indexOf('</thinking>');
+
+  if (thinkingStartIdx !== -1) {
+    if (thinkingEndIdx !== -1) {
+      // Thinking block is complete - remove it and everything before it
+      parsed = parsed.substring(thinkingEndIdx + 11);
+    } else {
+      // Thinking block is still streaming - hide everything from the start of the tag
+      // This prevents the "Thinking..." text from flashing before it's stripped
+      parsed = parsed.substring(0, thinkingStartIdx);
+    }
   }
 
-  // 2. Handle RESPONSE blocks
-  // If <RESPONSE> tags exist, we ONLY want what's inside them.
-  const responseMatch = /<RESPONSE>([\s\S]*?)<\/RESPONSE>/i.exec(parsed);
-  if (responseMatch) {
-    parsed = responseMatch[1];
-  } else {
-    // If only opening <RESPONSE> tag is found, take everything after it
-    const responseStartIdx = parsed.toLowerCase().indexOf('<response>');
-    if (responseStartIdx !== -1) {
+  // 2. Handle Response State
+  const responseStartIdx = parsed.toLowerCase().indexOf('<response>');
+  const responseEndIdx = parsed.toLowerCase().indexOf('</response>');
+
+  if (responseStartIdx !== -1) {
+    if (responseEndIdx !== -1) {
+      // Response is complete - extract the meat
+      parsed = parsed.substring(responseStartIdx + 10, responseEndIdx);
+    } else {
+      // Response is streaming - show everything after the tag
       parsed = parsed.substring(responseStartIdx + 10);
     }
-    // Remove any remaining </RESPONSE> tags
-    parsed = parsed.replace(/<\/RESPONSE>/gi, '');
   }
 
-  // 3. Heuristic: If there's still a lot of text that looks like model commentary 
-  // (e.g. "This response showcases...", "Let me know if..."), it's hard to filter 
-  // without tags, but we've handled the most common cases now.
+  // 3. Fallback: If thinking was stripped and we have nothing, but the original had content,
+  // we might be in the middle of a thinking block. 
+  // We return empty to let the UI show its own "thinking" state if desired, 
+  // but here we just return the cleaned up string.
 
   return parsed.trim();
 }

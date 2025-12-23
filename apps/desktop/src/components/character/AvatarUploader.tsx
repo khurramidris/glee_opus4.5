@@ -93,8 +93,8 @@ export function AvatarUploader({ currentPath, onUpload, onClear }: AvatarUploade
       // Set preview
       setPreview(resized);
 
-      // Return path
-      onUpload(filePath);
+      // Return filename
+      onUpload(filename);
 
       addToast({ type: 'success', message: 'Avatar updated' });
     } catch (e) {

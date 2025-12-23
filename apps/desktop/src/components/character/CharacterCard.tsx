@@ -23,27 +23,28 @@ export const CharacterCard = memo(function CharacterCard({
     <Card
       hoverable
       padding="none"
-      className="overflow-hidden group"
+      variant="glass"
+      className="flex flex-col h-full overflow-hidden group transition-all duration-300 hover:glow-primary-sm hover:scale-[1.01] active:scale-[0.99]"
     >
       {/* Character Header */}
-      <div className="relative p-4 pb-3">
-        <div className="flex items-start gap-3">
+      <div className="flex-1 relative p-4 pb-3 flex flex-col">
+        <div className="flex items-start gap-4">
           <Avatar
             src={character.avatarPath}
             fallback={character.name}
             size="xl"
-            className="shadow-md"
+            className="shadow-md flex-shrink-0"
           />
           <div className="flex-1 min-w-0 pt-0.5">
             <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-surface-900 truncate font-display">
+              <h3 className="font-semibold text-white truncate font-display">
                 {character.name}
               </h3>
               {character.isBundled && (
                 <Badge variant="primary" size="sm">Starter</Badge>
               )}
             </div>
-            <p className="text-sm text-surface-500 mt-1.5 line-clamp-2 leading-relaxed">
+            <p className="text-sm text-white/50 mt-1.5 line-clamp-2 leading-relaxed">
               {truncate(character.description || 'No description', 80)}
             </p>
           </div>
@@ -51,7 +52,7 @@ export const CharacterCard = memo(function CharacterCard({
 
         {/* Tags */}
         {character.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-3">
+          <div className="flex flex-wrap gap-1.5 mt-auto pt-3">
             {character.tags.slice(0, 3).map((tag) => (
               <Badge key={tag} size="sm" variant="default">
                 {tag}
@@ -67,13 +68,13 @@ export const CharacterCard = memo(function CharacterCard({
       </div>
 
       {/* Actions */}
-      <div className="flex border-t border-surface-200">
+      <div className="flex border-t border-white/5 bg-white/2 mt-auto">
         <button
           onClick={onChat}
           className={cn(
             "flex-1 flex items-center justify-center gap-2 px-4 py-2.5",
-            "text-sm font-medium text-primary-600",
-            "hover:bg-primary-50 active:bg-primary-100",
+            "text-sm font-medium text-primary-400 hover:text-primary-300",
+            "hover:bg-white/5 active:bg-white/10",
             "transition-colors duration-150"
           )}
         >
@@ -83,14 +84,14 @@ export const CharacterCard = memo(function CharacterCard({
           Chat
         </button>
 
-        <div className="w-px bg-surface-200" />
+        <div className="w-px bg-white/5" />
 
         <button
           onClick={onEdit}
           className={cn(
             "px-4 py-2.5",
-            "text-surface-400 hover:text-surface-700",
-            "hover:bg-surface-100 active:bg-surface-150",
+            "text-white/30 hover:text-white",
+            "hover:bg-white/5 active:bg-white/10",
             "transition-colors duration-150"
           )}
           title="Edit"
@@ -104,8 +105,8 @@ export const CharacterCard = memo(function CharacterCard({
           onClick={onDelete}
           className={cn(
             "px-4 py-2.5",
-            "text-surface-400 hover:text-danger",
-            "hover:bg-red-50 active:bg-red-100",
+            "text-white/30 hover:text-danger",
+            "hover:bg-red-500/10 active:bg-red-500/20",
             "transition-colors duration-150"
           )}
           title="Delete"

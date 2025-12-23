@@ -13,6 +13,7 @@
     "withGlobalTauri": false,
     "windows": [
       {
+        "label": "main",
         "title": "Glee",
         "width": 1200,
         "height": 800,
@@ -22,7 +23,8 @@
         "fullscreen": false,
         "decorations": false,
         "transparent": false,
-        "center": true
+        "center": true,
+        "visible": false
       }
     ],
     "security": {

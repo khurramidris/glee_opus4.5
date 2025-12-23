@@ -49,16 +49,16 @@ export function SplashScreen({ onComplete, status = 'Loading...', progress }: Sp
                     className={cn(
                         "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2",
                         "w-[600px] h-[600px] rounded-full",
-                        "bg-gradient-to-r from-primary-600/20 via-primary-500/10 to-primary-600/20",
-                        "blur-3xl animate-pulse"
+                        "bg-[radial-gradient(circle,_rgba(168,85,247,0.2)_0%,_rgba(147,51,234,0.1)_50%,_transparent_100%)]",
+                        "blur-3xl animate-[pulse-glow_4s_ease-in-out_infinite]"
                     )}
                 />
                 <div
                     className={cn(
                         "absolute top-1/3 left-1/3 -translate-x-1/2 -translate-y-1/2",
                         "w-[400px] h-[400px] rounded-full",
-                        "bg-gradient-to-r from-secondary-500/10 to-transparent",
-                        "blur-3xl animate-pulse"
+                        "bg-[radial-gradient(circle,_rgba(6,182,212,0.1)_0%,_transparent_70%)]",
+                        "blur-3xl animate-[pulse-glow_4s_ease-in-out_infinite]"
                     )}
                     style={{ animationDelay: '1s' }}
                 />
@@ -69,8 +69,11 @@ export function SplashScreen({ onComplete, status = 'Loading...', progress }: Sp
                 {/* Logo mark */}
                 <div className="relative mb-4">
                     <div className="absolute -inset-4 bg-gradient-to-r from-primary-500/30 to-primary-600/30 rounded-2xl blur-xl" />
-                    <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center shadow-2xl shadow-primary-500/30">
-                        <span className="text-3xl font-bold text-white font-display">G</span>
+                    <div className="relative w-20 h-20 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 flex items-center justify-center p-3 shadow-2xl">
+                        <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.parentElement!.innerHTML = '<span class="text-4xl font-bold text-white">G</span>';
+                        }} />
                     </div>
                 </div>
 
@@ -102,15 +105,14 @@ export function SplashScreen({ onComplete, status = 'Loading...', progress }: Sp
                         )}
                         style={{
                             width: progress !== undefined ? `${displayProgress}%` : '100%',
-                            animation: progress === undefined ? 'pulse 1.5s ease-in-out infinite' : undefined
                         }}
                     />
                 </div>
 
-                {/* Shimmer effect for indeterminate state */}
-                {progress === undefined && (
-                    <div className="absolute inset-0 h-1.5 rounded-full overflow-hidden">
-                        <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" />
+                {/* Shimmer effect for indeterminate state or as active loading indicator */}
+                {(progress === undefined || progress < 100) && (
+                    <div className="absolute inset-0 h-1.5 rounded-full overflow-hidden pointer-events-none">
+                        <div className="h-full w-full bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
                     </div>
                 )}
             </div>
@@ -129,7 +131,11 @@ export function SplashScreen({ onComplete, status = 'Loading...', progress }: Sp
             <style>{`
         @keyframes shimmer {
           0% { transform: translateX(-100%); }
-          100% { transform: translateX(400%); }
+          100% { transform: translateX(100%); }
+        }
+        @keyframes pulse-glow {
+          0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.5; }
+          50% { transform: translate(-50%, -50%) scale(1.1); opacity: 0.8; }
         }
         .animate-shimmer {
           animation: shimmer 2s ease-in-out infinite;

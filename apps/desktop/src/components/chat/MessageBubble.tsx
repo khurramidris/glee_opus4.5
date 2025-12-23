@@ -80,7 +80,7 @@ export const MessageBubble = memo(function MessageBubble({
   return (
     <div
       className={cn(
-        'group flex gap-3 py-3 w-full animate-fade-in',
+        'group flex gap-4 py-4 w-full animate-fade-in transition-all duration-300',
         isUser ? 'flex-row-reverse' : 'flex-row'
       )}
       onMouseEnter={() => setShowActions(true)}
@@ -153,11 +153,11 @@ export const MessageBubble = memo(function MessageBubble({
                 </button>
               </div>
             </div>
-            ) : (
-              <p className="whitespace-pre-wrap break-words leading-relaxed text-[15px]">
-                {parseResponse(message.content)}
-              </p>
-            )}
+          ) : (
+            <p className="whitespace-pre-wrap break-words leading-relaxed">
+              {parseResponse(message.content)}
+            </p>
+          )}
 
         </div>
 

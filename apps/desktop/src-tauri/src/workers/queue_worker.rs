@@ -62,16 +62,19 @@ async fn process_queue(state: &AppState, app_handle: &AppHandle) {
     };
     
     // WATCHDOG: Verify sidecar is still responsive before processing
-    if !sidecar::health_check(&sidecar).await {
-        tracing::warn!("Sidecar health check failed - marking as unavailable");
-        state.set_sidecar(None);
-        // Emit event to frontend so user knows model stopped
-        let _ = app_handle.emit("model:status", serde_json::json!({
-            "status": "error",
-            "modelLoaded": false,
-            "message": "AI model stopped unexpectedly. Please restart from Settings."
-        }));
-        return;
+    // Skip health check if we're currently generating (embedding/summary tasks may be using sidecar)
+    if !state.is_generating() {
+        if !sidecar::health_check(&sidecar).await {
+            tracing::warn!("Sidecar health check failed - marking as unavailable");
+            state.set_sidecar(None);
+            // Emit event to frontend so user knows model stopped
+            let _ = app_handle.emit("model:status", serde_json::json!({
+                "status": "error",
+                "modelLoaded": false,
+                "message": "AI model stopped unexpectedly. Please restart from Settings."
+            }));
+            return;
+        }
     }
     
     // Don't start new generation if one is already running
@@ -192,6 +195,12 @@ async fn process_queue(state: &AppState, app_handle: &AppHandle) {
     // Build prompt for LLM
     let prompt_messages = build_llm_messages(&context, &character.name);
     
+    // Extract previous character messages for repetition detection
+    let previous_character_messages: Vec<String> = context.messages.iter()
+        .filter(|m| m.author_type == AuthorType::Character)
+        .map(|m| m.content.clone())
+        .collect();
+    
     // Generate response
     let generation_result = generate_response(
         &sidecar,
@@ -204,6 +213,7 @@ async fn process_queue(state: &AppState, app_handle: &AppHandle) {
         &message_id,
         settings.generation.stop_sequences.clone(),
         &character.name,
+        previous_character_messages,
     ).await;
     
     // Finish generation state
@@ -330,6 +340,8 @@ struct TokenFilter {
     in_thinking_block: bool,
     in_response_block: bool,
     character_name: String,
+    // Track previous messages to detect repetition
+    previous_messages: Vec<String>,
 }
 
 impl TokenFilter {
@@ -339,7 +351,47 @@ impl TokenFilter {
             in_thinking_block: false, 
             in_response_block: false,
             character_name: character_name.to_string(),
+            previous_messages: Vec::new(),
         }
+    }
+    
+    fn with_history(character_name: &str, history: Vec<String>) -> Self {
+        Self {
+            buffer: String::new(),
+            in_thinking_block: false, 
+            in_response_block: false,
+            character_name: character_name.to_string(),
+            previous_messages: history,
+        }
+    }
+    
+    /// Check if the output contains significant repetition from previous messages
+    fn strip_repeated_content(&self, content: &str) -> String {
+        let mut result = content.to_string();
+        
+        // Check against each previous message
+        for prev_msg in &self.previous_messages {
+            // Skip very short messages
+            if prev_msg.len() < 30 {
+                continue;
+            }
+            
+            // Extract a significant chunk from the previous message (first 100 chars normalized)
+            let prev_normalized = prev_msg.chars().take(150).collect::<String>().to_lowercase();
+            let curr_normalized = result.to_lowercase();
+            
+            // If the current output contains a substantial portion of a previous message, strip it
+            if let Some(pos) = curr_normalized.find(&prev_normalized) {
+                if pos < 50 {  // Only strip if repetition is near the start
+                    tracing::warn!("Detected repetition of previous message! Stripping repeated content.");
+                    // Find where the repetition ends and keep only new content
+                    let end_pos = pos + prev_msg.len().min(result.len() - pos);
+                    result = result[end_pos..].trim_start().to_string();
+                }
+            }
+        }
+        
+        result
     }
 
     fn process(&mut self, token: &str) -> Vec<String> {
@@ -561,7 +613,13 @@ impl TokenFilter {
             tracing::warn!("Stream ended inside response block (missing </RESPONSE>). Emitting rest.");
             let content = self.buffer.clone();
             self.buffer.clear();
-            return if content.is_empty() { None } else { Some(content) };
+            if content.is_empty() { 
+                return None; 
+            } else {
+                // Check for repetition before returning
+                let cleaned = self.strip_repeated_content(&content);
+                return if cleaned.is_empty() { None } else { Some(cleaned) };
+            }
         }
         
         // If we are in neutral mode and have buffer...
@@ -571,7 +629,9 @@ impl TokenFilter {
             tracing::warn!("Stream ended without ANY tags. Emitting full buffer as fallback.");
             let content = self.buffer.clone();
             self.buffer.clear();
-            return Some(content);
+            // Check for repetition before returning
+            let cleaned = self.strip_repeated_content(&content);
+            return if cleaned.is_empty() { None } else { Some(cleaned) };
         }
         
         None
@@ -589,6 +649,7 @@ async fn generate_response(
     message_id: &str,
     stop_sequences: Option<Vec<String>>,
     character_name: &str,
+    previous_messages: Vec<String>,
 ) -> Result<String, GenerationError> {
     tracing::info!("Starting generation for msg {}, max_tokens: {}", message_id, max_tokens);
     
@@ -606,7 +667,7 @@ async fn generate_response(
     
     let mut full_content = String::new();
     let mut internal_full_content = String::new();
-    let mut filter = TokenFilter::new(character_name);
+    let mut filter = TokenFilter::with_history(character_name, previous_messages);
     
     while let Some(event) = stream.recv().await {
         match event {
@@ -666,7 +727,7 @@ async fn generate_response(
     Ok(full_content)
 }
 
-fn build_llm_messages(context: &crate::services::ContextResult, character_name: &str) -> Vec<serde_json::Value> {
+fn build_llm_messages(context: &crate::services::ContextResult, _character_name: &str) -> Vec<serde_json::Value> {
     let mut prompt_messages = Vec::new();
     
     // System message
@@ -683,24 +744,9 @@ fn build_llm_messages(context: &crate::services::ContextResult, character_name: 
             AuthorType::System => "system",
         };
         
-        let content = if msg.author_type == AuthorType::Character {
-            // Standardize character message formatting
-            if let Some(ref name) = msg.author_name {
-                format!("{}: {}", name, msg.content)
-            } else {
-                format!("{}: {}", character_name, msg.content)
-            }
-        } else if msg.author_type == AuthorType::User {
-            // Standardize user message formatting
-            let user_name = if !context.persona_name.is_empty() {
-                &context.persona_name
-            } else {
-                "User"
-            };
-            format!("{}: {}", user_name, msg.content)
-        } else {
-            msg.content.clone()
-        };
+        // Use content directly - the role already identifies the speaker
+        // Adding name prefixes can train the model to repeat "Name:" patterns
+        let content = msg.content.clone();
         
         prompt_messages.push(serde_json::json!({
             "role": role,

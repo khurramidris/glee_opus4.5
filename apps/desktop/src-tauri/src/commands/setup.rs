@@ -49,7 +49,8 @@ fn detect_hardware() -> (String, String) {
     // Run wmic path win32_videocontroller get name
     let output = Command::new("wmic")
         .args(&["path", "win32_videocontroller", "get", "name"])
-        .creation_flags(CREATE_NO_WINDOW)
+        // BETA: Console visible for debugging - re-enable for production
+        // .creation_flags(CREATE_NO_WINDOW)
         .output();
 
     match output {

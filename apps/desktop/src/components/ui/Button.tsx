@@ -81,12 +81,22 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           baseStyles,
           variants[variant],
           sizes[size],
+          "relative overflow-hidden group/btn",
           className
         )}
         {...props}
       >
-        {isLoading && <Spinner size="sm" />}
-        {children}
+        {/* Shimmer Effect overlay for gradient buttons */}
+        {(variant === 'primary' || variant === 'danger' || variant === 'success') && (
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover/btn:animate-shimmer transition-transform" />
+          </div>
+        )}
+
+        <div className="relative z-10 flex items-center justify-center gap-2">
+          {isLoading && <Spinner size="sm" />}
+          {children}
+        </div>
       </button>
     );
   }

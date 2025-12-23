@@ -1,4 +1,5 @@
 import { useEffect, Suspense, useRef, useState } from 'react';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
 import { ChatView } from '@/components/chat/ChatView';
@@ -45,6 +46,21 @@ export default function App() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Show window quickly to reveal the splash screen
+    // We add a tiny delay to ensure the DOM is ready for the initial splash
+    const showWindow = async () => {
+      try {
+        const win = getCurrentWindow();
+        console.log("Window show requested from frontend...");
+        await win.show();
+        console.log("Window show command executed successfully");
+      } catch (err) {
+        console.error("Failed to show window from frontend:", err);
+      }
+    };
+
+    setTimeout(showWindow, 100);
+
     const loadData = async () => {
       try {
         setLoadingPhase('settings');
@@ -92,10 +108,12 @@ export default function App() {
     }
   }, [settings, startSidecar]);
 
+  // Window is shown on mount in the first useEffect
+
   const getLoadingStatus = () => {
     if (loadError) return `Error: ${loadError}`;
     switch (loadingPhase) {
-      case 'init': return 'Initializing...';
+      case 'init': return 'Loading...';
       case 'settings': return 'Loading settings...';
       case 'data': return 'Loading characters and personas...';
       case 'model': return 'Starting AI model...';

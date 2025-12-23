@@ -677,11 +677,15 @@ pub struct MemoryService;
 impl MemoryService {
     /// Build context for LLM generation with tiered memory system:
     /// Tier 1: System Prompt (character identity + persona)
+    /// Build context for LLM generation with tiered memory system:
+    /// Tier 1: System Prompt (character identity + persona)
     /// Tier 2: Conversation Summaries (compressed old messages)
     /// Tier 3: Semantic Memories (vector-searched relevant facts)
     /// Tier 4: Lorebook (keyword-matched world knowledge)
     /// Tier 5: Recent History (sliding window)
     /// Tier 6: Response Reserve
+    /// 
+    /// NOTE: This is the SYNC version - use build_context_async for semantic memory search
     pub fn build_context(db: &Database, conv_id: &str, max_tokens: i32) -> AppResult<ContextResult> {
         let settings = SettingsRepo::get_all(db)?;
         let conversation = ConversationRepo::find_by_id(db, conv_id)?;
@@ -703,96 +707,121 @@ impl MemoryService {
         // Get user name early for placeholder replacement
         let user_name = persona.as_ref().map(|p| p.name.clone()).unwrap_or("User".to_string());
         
-        // ====== Tier 1: Build System Prompt ======
+        // ============================================================
+        // BUILD SYSTEM PROMPT MATCHING GRPO MODEL'S TRAINED FORMAT
+        // The model expects: Character, Tags, Personality, Scenario, Instruction
+        // ============================================================
         let mut system_parts = Vec::new();
         
-        // --- Character's custom system prompt (highest priority) ---
-        if !character.system_prompt.is_empty() {
-            let custom_prompt = replace_placeholders(&character.system_prompt, &character.name, &user_name);
-            system_parts.push(custom_prompt);
+        // ====== SECTION 1: CHARACTER IDENTITY ======
+        let char_header = if !character.tags.is_empty() {
+            format!("Character: {}, {}", character.name, character.tags.first().unwrap_or(&"".to_string()))
+        } else {
+            format!("Character: {}", character.name)
+        };
+        system_parts.push(char_header);
+        
+        if !character.tags.is_empty() {
+            system_parts.push(format!("Tags: {}", character.tags.join(", ")));
         }
         
-        // --- START NEW PROMPT FORMAT ---
-        // Format:
-        // Character: [Name]
-        // Tags: [Tags]
-        // Personality: [Personality]
-        // Scenario: [Scenario]
-        // [Description/Body]
-
-        // 1. Character Name
-        system_parts.push(format!("Character: {}", character.name));
-
-        // 2. Tags
-        if !character.tags.is_empty() {
-             system_parts.push(format!("Tags: {}", character.tags.join(", ")));
-        }
-
-        // 3. Personality
+        // ====== SECTION 2: PERSONALITY ======
+        let mut personality_parts = Vec::new();
+        
         if !character.personality.is_empty() {
-             let personality = replace_placeholders(&character.personality, &character.name, &user_name);
-             system_parts.push(format!("Personality: {}", personality));
+            let personality = replace_placeholders(&character.personality, &character.name, &user_name);
+            personality_parts.push(personality);
         }
-
-        // 4. Description and Scenario
+        
+        if !character.speech_patterns.is_empty() {
+            personality_parts.push(format!("Speech style: {}", character.speech_patterns));
+        }
+        
+        if !character.likes.is_empty() {
+            personality_parts.push(format!("Likes: {}", character.likes.join(", ")));
+        }
+        if !character.dislikes.is_empty() {
+            personality_parts.push(format!("Dislikes: {}", character.dislikes.join(", ")));
+        }
+        
+        if !character.physical_traits.is_empty() {
+            personality_parts.push(format!("Appearance: {}", character.physical_traits));
+        }
+        
         if !character.description.is_empty() {
-             let description = replace_placeholders(&character.description, &character.name, &user_name);
-             system_parts.push(description);
+            let description = replace_placeholders(&character.description, &character.name, &user_name);
+            personality_parts.push(description);
         }
-
-        // 5. Persona (User Context)
+        
+        if !character.backstory.is_empty() {
+            let backstory = replace_placeholders(&character.backstory, &character.name, &user_name);
+            personality_parts.push(format!("Background: {}", backstory));
+        }
+        
+        if !personality_parts.is_empty() {
+            system_parts.push(format!("{}'s Personality:\n{}", character.name, personality_parts.join(" ")));
+        }
+        
+        // ====== SECTION 3: SCENARIO ======
+        let mut scenario_parts = Vec::new();
+        
+        if !character.scenario.is_empty() {
+            let scenario = replace_placeholders(&character.scenario, &character.name, &user_name);
+            scenario_parts.push(format!("- **Setting:** {}", scenario));
+        }
+        
+        if !character.system_prompt.is_empty() {
+            let custom_prompt = replace_placeholders(&character.system_prompt, &character.name, &user_name);
+            scenario_parts.push(format!("- {}", custom_prompt));
+        }
+        
         if let Some(p) = &persona {
             if !p.description.is_empty() {
-                system_parts.push(format!("User persona ({}): {}", p.name, p.description));
+                scenario_parts.push(format!("- {{{{user}}}} ({}) is: {}", p.name, p.description));
             }
         }
         
-        // ====== Tier 2: Conversation Summaries ======
+        if !scenario_parts.is_empty() {
+            system_parts.push(format!("Scenario:\n{}", scenario_parts.join("\n")));
+        }
+        
+        // ====== MEMORIES ======
+        let memories = LongTermMemoryService::retrieve_relevant_sync(
+            db,
+            &character.id,
+            None,
+            15,
+            0.4,
+        ).unwrap_or_default();
+        
+        if !memories.is_empty() {
+            let mut memory_tokens = 0;
+            let mut memory_facts = Vec::new();
+            
+            for (memory, _similarity) in memories {
+                let tokens = estimate_tokens(&memory.content);
+                if memory_tokens + tokens > memory_budget { break; }
+                memory_tokens += tokens;
+                memory_facts.push(format!("- {}", memory.content.trim()));
+            }
+            
+            if !memory_facts.is_empty() {
+                system_parts.push(format!("What {} knows about {{{{user}}}}:\n{}", 
+                    character.name, memory_facts.join("\n")));
+            }
+        }
+        
+        // ====== Conversation Summaries ======
         let summaries = SummaryService::get_for_conversation(db, conv_id, summary_budget)?;
         if !summaries.is_empty() {
             let summary_text = summaries.iter()
                 .map(|s| s.content.as_str())
                 .collect::<Vec<_>>()
                 .join("\n");
-            system_parts.push(format!("[Previous conversation summary]\n{}", summary_text));
+            system_parts.push(format!("Previous conversation context:\n{}", summary_text));
         }
         
-        // ====== Tier 3: Semantic Memories ======
-        // Query text for future semantic search (currently unused in sync context)
-        let _recent_query = messages.iter().rev().take(3)
-            .map(|m| m.content.as_str())
-            .collect::<Vec<_>>()
-            .join(" ");
-        
-        // Try to get relevant memories (without query embedding for now - sync context)
-        let memories = LongTermMemoryService::retrieve_relevant_sync(
-            db,
-            &character.id,
-            None, // No embedding in sync context
-            10,   // Max memories
-            0.5,  // Min similarity
-        ).unwrap_or_default();
-        
-        if !memories.is_empty() {
-            let mut memory_tokens = 0;
-            let mut memory_parts = Vec::new();
-            
-            for (memory, _similarity) in memories {
-                let tokens = estimate_tokens(&memory.content);
-                if memory_tokens + tokens > memory_budget { break; }
-                memory_parts.push(format!("- {}", memory.content));
-                memory_tokens += tokens;
-            }
-            
-            if !memory_parts.is_empty() {
-                system_parts.push(format!(
-                    "[Important facts about the user]\n{}",
-                    memory_parts.join("\n")
-                ));
-            }
-        }
-        
-        // ====== Tier 4: Lorebook ======
+        // ====== Lorebook ======
         let recent_text = messages.iter().rev().take(10).map(|m| m.content.as_str()).collect::<Vec<_>>().join(" ");
         let lore_entries = LorebookService::find_matching_entries(db, conv_id, &recent_text)?;
         
@@ -812,24 +841,27 @@ impl MemoryService {
             used_lore_tokens += tokens;
         }
         
-        // Example dialogues (with placeholder replacement)
-        if !character.example_dialogues.is_empty() {
-            let examples = replace_placeholders(&character.example_dialogues, &character.name, &user_name);
-            system_parts.push(format!("Example dialogue:\n{}", examples));
+        if !after_sys.is_empty() {
+            system_parts.push(format!("World information:\n{}", after_sys.join("\n")));
         }
         
-        // MANDATORY INSTRUCTION (with actual names, not placeholders)
-        let mandatory_instruction = format!(
-            "Take the role of {}. You must engage in a roleplay conversation with {}. Do not write {}'s dialogue or actions. Respond from {}'s perspective, embodying their personality and knowledge.", 
-            character.name, user_name, user_name, character.name
+        // ====== Example Dialogue ======
+        if !character.example_dialogues.is_empty() {
+            let examples = replace_placeholders(&character.example_dialogues, &character.name, &user_name);
+            system_parts.push(format!("Example of {}'s writing style:\n{}", character.name, examples));
+        }
+        
+        // ====== FINAL INSTRUCTION (matches model training) ======
+        let final_instruction = format!(
+            "Take the role of {}. Taking the above information into consideration, you must engage in a roleplay conversation with {{{{user}}}} below this line. Do not write {{{{user}}}}'s dialogue lines in your responses. Respond from {}'s perspective, fully embodying their personality. Never repeat your previous responses - each message must be unique and advance the story.",
+            character.name, character.name
         );
-        system_parts.push(mandatory_instruction);
+        system_parts.push(final_instruction);
 
-        // Assemble final system prompt (preserving lorebook position logic)
+        // Assemble final system prompt
         let mut final_parts = Vec::new();
         final_parts.extend(before_sys);
         final_parts.extend(system_parts);
-        final_parts.extend(after_sys);
         
         let final_system = final_parts.join("\n\n");
         let sys_tokens = estimate_tokens(&final_system);
@@ -869,6 +901,15 @@ pub struct ContextResult {
 impl MemoryService {
     /// Async version of build_context that enables semantic memory search
     /// by generating query embeddings from recent messages
+    /// 
+    /// RESTRUCTURED PROMPT FORMAT:
+    /// 1. CRITICAL ROLEPLAY INSTRUCTIONS (top priority)
+    /// 2. CHARACTER IDENTITY (name, personality, traits)
+    /// 3. SCENARIO & BACKSTORY
+    /// 4. USER CONTEXT (persona, memories categorized)
+    /// 5. CONVERSATION CONTEXT (summaries, lorebook)
+    /// 6. EXAMPLE DIALOGUE
+    /// 7. RESPONSE REQUIREMENTS (reinforced at end)
     pub async fn build_context_async(
         db: &Database,
         sidecar: &crate::sidecar::SidecarHandle,
@@ -895,98 +936,139 @@ impl MemoryService {
         // Get user name early for placeholder replacement
         let user_name = persona.as_ref().map(|p| p.name.clone()).unwrap_or("User".to_string());
         
-        // ====== Tier 1: Build System Prompt ======
+        // ============================================================
+        // BUILD SYSTEM PROMPT MATCHING GRPO MODEL'S TRAINED FORMAT
+        // The model expects: Character, Tags, Personality, Scenario, Instruction
+        // ============================================================
         let mut system_parts = Vec::new();
-
-        // --- Character's custom system prompt (highest priority) ---
+        
+        // ====== SECTION 1: CHARACTER IDENTITY ======
+        // Format: "Character: [Name], [Title/Descriptor]"
+        let char_header = if !character.tags.is_empty() {
+            format!("Character: {}, {}", character.name, character.tags.first().unwrap_or(&"".to_string()))
+        } else {
+            format!("Character: {}", character.name)
+        };
+        system_parts.push(char_header);
+        
+        // Tags (genre/theme hints) - exactly as model expects
+        if !character.tags.is_empty() {
+            system_parts.push(format!("Tags: {}", character.tags.join(", ")));
+        }
+        
+        // ====== SECTION 2: PERSONALITY ======
+        // Format: "[Name]'s Personality:\n[description]"
+        let mut personality_parts = Vec::new();
+        
+        if !character.personality.is_empty() {
+            let personality = replace_placeholders(&character.personality, &character.name, &user_name);
+            personality_parts.push(personality);
+        }
+        
+        if !character.speech_patterns.is_empty() {
+            personality_parts.push(format!("Speech style: {}", character.speech_patterns));
+        }
+        
+        if !character.likes.is_empty() {
+            personality_parts.push(format!("Likes: {}", character.likes.join(", ")));
+        }
+        if !character.dislikes.is_empty() {
+            personality_parts.push(format!("Dislikes: {}", character.dislikes.join(", ")));
+        }
+        
+        if !character.physical_traits.is_empty() {
+            personality_parts.push(format!("Appearance: {}", character.physical_traits));
+        }
+        
+        if !character.description.is_empty() {
+            let description = replace_placeholders(&character.description, &character.name, &user_name);
+            personality_parts.push(description);
+        }
+        
+        if !character.backstory.is_empty() {
+            let backstory = replace_placeholders(&character.backstory, &character.name, &user_name);
+            personality_parts.push(format!("Background: {}", backstory));
+        }
+        
+        if !personality_parts.is_empty() {
+            system_parts.push(format!("{}'s Personality:\n{}", character.name, personality_parts.join(" ")));
+        }
+        
+        // ====== SECTION 3: SCENARIO ======
+        // Format: "Scenario:\n- **Setting:** [setting]\n- [context]"
+        let mut scenario_parts = Vec::new();
+        
+        if !character.scenario.is_empty() {
+            let scenario = replace_placeholders(&character.scenario, &character.name, &user_name);
+            scenario_parts.push(format!("- **Setting:** {}", scenario));
+        }
+        
+        // Add character's custom system prompt as additional context
         if !character.system_prompt.is_empty() {
             let custom_prompt = replace_placeholders(&character.system_prompt, &character.name, &user_name);
-            system_parts.push(custom_prompt);
+            scenario_parts.push(format!("- {}", custom_prompt));
         }
-
-        // --- START NEW PROMPT FORMAT ---
-        // Format:
-        // Character: [Name]
-        // Tags: [Tags]
-        // Personality: [Personality]
-        // [Description/Body]
-
-        // 1. Character Name
-        system_parts.push(format!("Character: {}", character.name));
-
-        // 2. Tags
-        if !character.tags.is_empty() {
-             system_parts.push(format!("Tags: {}", character.tags.join(", ")));
-        }
-
-        // 3. Personality
-        if !character.personality.is_empty() {
-             let personality = replace_placeholders(&character.personality, &character.name, &user_name);
-             system_parts.push(format!("Personality: {}", personality));
-        }
-
-        // 4. Description and Scenario
-        if !character.description.is_empty() {
-             let description = replace_placeholders(&character.description, &character.name, &user_name);
-             system_parts.push(description);
-        }
-
-        // 5. Persona (User Context)
+        
+        // Add user context
         if let Some(p) = &persona {
             if !p.description.is_empty() {
-                system_parts.push(format!("User persona ({}): {}", p.name, p.description));
+                scenario_parts.push(format!("- {{{{user}}}} ({}) is: {}", p.name, p.description));
             }
         }
         
-        // ====== Tier 2: Conversation Summaries ======
+        if !scenario_parts.is_empty() {
+            system_parts.push(format!("Scenario:\n{}", scenario_parts.join("\n")));
+        }
+        
+        // ====== MEMORIES (as additional context) ======
+        // Embed memories naturally into the scenario/context section
+        let query = messages.iter().rev().take(5)
+            .map(|m| m.content.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        
+        let query_embedding = if !query.is_empty() {
+            crate::sidecar::generate_embedding(sidecar, &query).await.ok()
+        } else {
+            None
+        };
+        
+        let memories = LongTermMemoryService::retrieve_relevant_sync(
+            db,
+            &character.id,
+            query_embedding.as_deref(),
+            15,
+            0.4,
+        ).unwrap_or_default();
+        
+        if !memories.is_empty() {
+            let mut memory_tokens = 0;
+            let mut memory_facts = Vec::new();
+            
+            for (memory, _score) in memories {
+                let tokens = estimate_tokens(&memory.content);
+                if memory_tokens + tokens > memory_budget { break; }
+                memory_tokens += tokens;
+                memory_facts.push(format!("- {}", memory.content.trim()));
+            }
+            
+            if !memory_facts.is_empty() {
+                system_parts.push(format!("What {} knows about {{{{user}}}}:\n{}", 
+                    character.name, memory_facts.join("\n")));
+            }
+        }
+        
+        // ====== Conversation Summaries ======
         let summaries = SummaryService::get_for_conversation(db, conv_id, summary_budget)?;
         if !summaries.is_empty() {
             let summary_text = summaries.iter()
                 .map(|s| s.content.as_str())
                 .collect::<Vec<_>>()
                 .join("\n");
-            system_parts.push(format!("[Previous conversation summary]\n{}", summary_text));
+            system_parts.push(format!("Previous conversation context:\n{}", summary_text));
         }
         
-        // ====== Tier 3: Semantic Memories (with actual embedding!) ======
-        // Generate query from recent messages
-        let recent_query = messages.iter().rev().take(3)
-            .map(|m| m.content.as_str())
-            .collect::<Vec<_>>()
-            .join(" ");
-        
-        // Generate query embedding asynchronously
-        let query_embedding = EmbeddingService::generate(sidecar, &recent_query).await.ok();
-        
-        // Retrieve with semantic search using actual embedding
-        let memories = LongTermMemoryService::retrieve_relevant_sync_with_recency(
-            db,
-            &character.id,
-            query_embedding.as_deref(),
-            10,
-            0.5,
-        ).unwrap_or_default();
-        
-        if !memories.is_empty() {
-            let mut memory_tokens = 0;
-            let mut memory_parts = Vec::new();
-            
-            for (memory, _score) in memories {
-                let tokens = estimate_tokens(&memory.content);
-                if memory_tokens + tokens > memory_budget { break; }
-                memory_parts.push(format!("- {}", memory.content));
-                memory_tokens += tokens;
-            }
-            
-            if !memory_parts.is_empty() {
-                system_parts.push(format!(
-                    "[Important facts about the user]\n{}",
-                    memory_parts.join("\n")
-                ));
-            }
-        }
-        
-        // ====== Tier 4: Lorebook ======
+        // ====== Lorebook ======
         let recent_text = messages.iter().rev().take(10).map(|m| m.content.as_str()).collect::<Vec<_>>().join(" ");
         let lore_entries = LorebookService::find_matching_entries(db, conv_id, &recent_text)?;
         
@@ -1006,27 +1088,35 @@ impl MemoryService {
             used_lore_tokens += tokens;
         }
         
-        // Example dialogues (with placeholder replacement)
-        if !character.example_dialogues.is_empty() {
-            let examples = replace_placeholders(&character.example_dialogues, &character.name, &user_name);
-            system_parts.push(format!("Example dialogue:\n{}", examples));
+        if !after_sys.is_empty() {
+            system_parts.push(format!("World information:\n{}", after_sys.join("\n")));
         }
         
-        // MANDATORY INSTRUCTION (with actual names, not placeholders)
-        let mandatory_instruction = format!(
-            "Take the role of {}. You must engage in a roleplay conversation with {}. Do not write {}'s dialogue or actions. Respond from {}'s perspective, embodying their personality and knowledge.", 
-            character.name, user_name, user_name, character.name
+        // ====== Example Dialogue ======
+        if !character.example_dialogues.is_empty() {
+            let examples = replace_placeholders(&character.example_dialogues, &character.name, &user_name);
+            system_parts.push(format!("Example of {}'s writing style:\n{}", character.name, examples));
+        }
+        
+        // ====== FINAL INSTRUCTION ======
+        // This is CRITICAL - matches the model's trained format exactly
+        let final_instruction = format!(
+            "Take the role of {}. Taking the above information into consideration, you must engage in a roleplay conversation with {{{{user}}}} below this line. Do not write {{{{user}}}}'s dialogue lines in your responses. Respond from {}'s perspective, fully embodying their personality. Never repeat your previous responses - each message must be unique and advance the story.",
+            character.name, character.name
         );
-        system_parts.push(mandatory_instruction);
+        system_parts.push(final_instruction);
 
-        // Assemble final system prompt
+        // Assemble final system prompt (preserving lorebook position logic)
         let mut final_parts = Vec::new();
-        final_parts.extend(before_sys);
+        final_parts.extend(before_sys);  // Lorebook entries that go before system
         final_parts.extend(system_parts);
-        final_parts.extend(after_sys);
         
         let final_system = final_parts.join("\n\n");
         let sys_tokens = estimate_tokens(&final_system);
+        
+        // Debug log the full prompt for inspection
+        tracing::debug!("=== FULL SYSTEM PROMPT ({} tokens) ===\n{}\n=== END SYSTEM PROMPT ===", 
+            sys_tokens, final_system);
         
         // ====== Tier 5: Conversation History ======
         let available = max_tokens - sys_tokens - response_reserve;
@@ -1040,6 +1130,9 @@ impl MemoryService {
             history_tokens += t;
         }
         history.reverse();
+        
+        tracing::info!("Context built: {} system tokens, {} history tokens, {} messages", 
+            sys_tokens, history_tokens, history.len());
         
         Ok(ContextResult {
             system_prompt: final_system,

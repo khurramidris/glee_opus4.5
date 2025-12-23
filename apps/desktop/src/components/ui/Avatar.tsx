@@ -1,5 +1,6 @@
-import { cn } from '@/lib/utils';
 import { useMemo } from 'react';
+import { useAvatarUrl } from '@/hooks/useAvatarUrl';
+import { cn } from '@/lib/utils';
 
 export interface AvatarProps {
   src?: string | null;
@@ -48,6 +49,9 @@ export function Avatar({
   className,
   showRing = false,
 }: AvatarProps) {
+  const resolvedUrl = useAvatarUrl(src);
+  const displaySrc = resolvedUrl;
+
   const sizes = {
     xs: 'w-6 h-6 text-[10px]',
     sm: 'w-8 h-8 text-xs',
@@ -62,7 +66,7 @@ export function Avatar({
   const colorScheme = useMemo(() => getColorFromName(fallback), [fallback]);
   const initials = useMemo(() => getInitials(fallback), [fallback]);
 
-  if (src) {
+  if (displaySrc) {
     return (
       <div
         className={cn(
@@ -74,7 +78,7 @@ export function Avatar({
         )}
       >
         <img
-          src={src}
+          src={displaySrc}
           alt={fallback}
           className="w-full h-full object-cover"
           onError={(e) => {
