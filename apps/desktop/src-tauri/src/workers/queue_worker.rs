@@ -352,6 +352,8 @@ struct TokenFilter {
     previous_messages: Vec<String>,
     // Track if we've seen any tags at all
     seen_any_tag: bool,
+    // Add raw fallback triggered flag
+    fallback_triggered: bool,
 }
 
 impl TokenFilter {
@@ -362,6 +364,7 @@ impl TokenFilter {
             in_response_block: false,
             previous_messages: history,
             seen_any_tag: false,
+            fallback_triggered: false,
         }
     }
     
@@ -419,7 +422,7 @@ impl TokenFilter {
         result.trim().to_string()
     }
 
-    fn process(&mut self, token: &str) -> Vec<String> {
+    fn process(&mut self, token: &str, app_handle: &AppHandle, conversation_id: &str) -> Vec<String> {
         self.buffer.push_str(token);
         let mut output = Vec::new();
 
@@ -543,10 +546,18 @@ impl TokenFilter {
             }
             
             // No partial tags. If buffer is getting large and we haven't seen any tags,
-            // the model might not be using our tag format. Wait longer to be sure.
+            // the model might not be using our tag format.
             if self.buffer.len() > 500 && !self.seen_any_tag {
                 // Model isn't using tags - emit as-is but clean just in case
-                tracing::warn!("Buffer exceeded 500 chars with no tags detected. Entering fallback mode.");
+                if !self.fallback_triggered {
+                    tracing::warn!("Buffer exceeded 500 chars with no tags detected. Entering fallback mode.");
+                    self.fallback_triggered = true;
+                    // Emit warning to frontend
+                    let _ = app_handle.emit("chat:warning", serde_json::json!({
+                        "conversation_id": conversation_id,
+                        "message": "Model is not using the expected tag format. Output might include internal reasoning."
+                    }));
+                }
                 self.in_response_block = true;
                 continue;
             }
@@ -561,9 +572,13 @@ impl TokenFilter {
         // If we are left with content in the buffer...
         
         if self.in_thinking_block {
-             tracing::warn!("Stream ended inside thinking block. Discarding remaining buffer.");
+             tracing::warn!("Stream ended inside thinking block. Discarding thinking tags but keeping content as fallback.");
+             // P0 FIX: Don't discard content, just clean tags
+             let content = self.buffer.clone();
              self.buffer.clear();
-             return None;
+             let cleaned = Self::clean_tags(&content);
+             if cleaned.is_empty() { return None; }
+             return Some(cleaned);
         }
         
         if self.in_response_block || !self.buffer.is_empty() {
@@ -608,6 +623,57 @@ async fn generate_response(
     character_name: &str,
     previous_messages: Vec<String>,
 ) -> Result<String, GenerationError> {
+    const MAX_RETRIES: u32 = 2;
+    let mut last_error = String::new();
+
+    for attempt in 0..=MAX_RETRIES {
+        if attempt > 0 {
+            tracing::info!("Retrying generation (attempt {}/{}) for msg {}", attempt, MAX_RETRIES, message_id);
+            tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        }
+
+        match internal_generate_response(
+            sidecar,
+            messages.clone(),
+            temperature,
+            max_tokens,
+            cancel_token.clone(),
+            app_handle,
+            conversation_id,
+            message_id,
+            stop_sequences.clone(),
+            character_name,
+            previous_messages.clone(),
+        ).await {
+            Ok(content) => return Ok(content),
+            Err(GenerationError::Cancelled) => return Err(GenerationError::Cancelled),
+            Err(GenerationError::Error(e)) => {
+                last_error = e;
+                // Only retry on transient-looking errors
+                if !last_error.contains("stalled") && !last_error.contains("timeout") && !last_error.contains("connection") {
+                    // If it's a fatal model error or OOM, don't retry
+                    break;
+                }
+            }
+        }
+    }
+
+    Err(GenerationError::Error(last_error))
+}
+
+async fn internal_generate_response(
+    sidecar: &sidecar::SidecarHandle,
+    messages: Vec<serde_json::Value>,
+    temperature: f32,
+    max_tokens: i32,
+    cancel_token: tokio_util::sync::CancellationToken,
+    app_handle: &AppHandle,
+    conversation_id: &str,
+    message_id: &str,
+    stop_sequences: Option<Vec<String>>,
+    character_name: &str,
+    previous_messages: Vec<String>,
+) -> Result<String, GenerationError> {
     tracing::info!("Starting generation for msg {}, max_tokens: {}", message_id, max_tokens);
     
     let mut stream = sidecar::generate_stream(
@@ -631,7 +697,7 @@ async fn generate_response(
             GenerationEvent::Token(token) => {
                 internal_full_content.push_str(&token);
                 
-                let visible_tokens = filter.process(&token);
+                let visible_tokens = filter.process(&token, app_handle, conversation_id);
                 for visible in visible_tokens {
                     if !visible.is_empty() {
                         full_content.push_str(&visible);
@@ -674,6 +740,11 @@ async fn generate_response(
         if !internal_full_content.is_empty() {
             tracing::warn!("Generated content was filtered out entirely! Raw length: {}, Raw start: {:.50}", 
                 internal_full_content.len(), internal_full_content);
+            // P0 FIX: If filtered out entirely, return raw content as last resort
+            let cleaned = TokenFilter::clean_tags(&internal_full_content);
+            if !cleaned.is_empty() {
+                return Ok(cleaned);
+            }
         } else {
              tracing::warn!("Generated content was completely empty (no tokens received).");
         }

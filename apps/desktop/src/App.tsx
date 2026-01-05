@@ -113,6 +113,32 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    let unlistenWarning: (() => void) | null = null;
+    let unlistenError: (() => void) | null = null;
+
+    const setupListeners = async () => {
+      const { listen } = await import('@tauri-apps/api/event');
+
+      unlistenWarning = await listen<{ message: string }>('chat:warning', (event) => {
+        console.warn('[App] Chat warning:', event.payload.message);
+        addToast({ type: 'warning', message: event.payload.message });
+      });
+
+      unlistenError = await listen<{ error: string }>('chat:error', (event) => {
+        console.error('[App] Chat error:', event.payload.error);
+        addToast({ type: 'error', message: event.payload.error });
+      });
+    };
+
+    setupListeners();
+
+    return () => {
+      if (unlistenWarning) unlistenWarning();
+      if (unlistenError) unlistenError();
+    };
+  }, [addToast]);
+
+  useEffect(() => {
     // Wait until we know if onboarding is needed
     if (needsOnboarding === null) return;
 

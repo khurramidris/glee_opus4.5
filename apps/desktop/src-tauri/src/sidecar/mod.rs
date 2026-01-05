@@ -142,6 +142,11 @@ fn find_sidecar_binary(app_handle: &AppHandle, custom_path: Option<&str>) -> App
     )))
 }
 
+fn is_port_free(port: u16) -> bool {
+    use std::net::TcpListener;
+    TcpListener::bind(("127.0.0.1", port)).is_ok()
+}
+
 pub async fn start_sidecar(
     app_handle: &AppHandle,
     model_path: &Path,
@@ -158,6 +163,15 @@ pub async fn start_sidecar(
     
     let sidecar_binary = find_sidecar_binary(app_handle, sidecar_path)?;
     let port = find_available_port(DEFAULT_SIDECAR_PORT);
+
+    // P0 FIX: Verify port is actually free before starting
+    if !is_port_free(port) {
+        tracing::error!("Port {} is already in use by another application.", port);
+        let _ = app_handle.emit("chat:error", serde_json::json!({
+            "error": format!("Port {} is already in use. Please close any other instances of Glee or llama-server.", port)
+        }));
+        return Err(AppError::Sidecar(format!("Port {} is already in use", port)));
+    }
     
     tracing::info!("Starting sidecar from: {:?}", sidecar_binary);
     tracing::info!("Model path: {:?}", model_path);
@@ -178,7 +192,7 @@ pub async fn start_sidecar(
         .arg("--n-gpu-layers").arg(gpu_layers.to_string())
         .arg("--parallel").arg("1")
         .arg("--cont-batching")
-        .arg("--flash-attn").arg("auto")
+        .arg("--flash-attn").arg(if gpu_layers > 0 { "auto" } else { "off" })
         .arg("-ctk").arg("q8_0")
         .arg("--embeddings")
         // Note: This GRPO model uses <thinking> and <RESPONSE> tags intentionally
@@ -188,9 +202,13 @@ pub async fn start_sidecar(
         .stderr(Stdio::piped())
         .kill_on_drop(true);
     
-    // BETA: Console visible for debugging - re-enable for production
-    // #[cfg(target_os = "windows")]
-    // cmd.creation_flags(0x08000000);
+    // P0 FIX: Windows process group for clean signal handling
+    #[cfg(target_os = "windows")]
+    {
+        const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
+        // const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NEW_PROCESS_GROUP);
+    }
     
     let mut child = cmd.spawn()
         .map_err(|e| AppError::Sidecar(format!("Failed to start sidecar: {}", e)))?;
@@ -285,11 +303,11 @@ pub async fn start_sidecar(
         detected_stop_tokens: Arc::new(Mutex::new(None)),
     };
     
-    let max_attempts = 300;
+    // Wait for sidecar to become healthy
+    let max_attempts = 150; // Reduced from 300 to be more aggressive
     for attempt in 1..=max_attempts {
         if attempt % 10 == 0 {
             tracing::info!("Waiting for sidecar to be ready... ({}/{})", attempt, max_attempts);
-            // Emit loading progress event for frontend
             let progress = (attempt as f32 / max_attempts as f32 * 100.0) as i32;
             let _ = app_handle.emit("model:loading", serde_json::json!({
                 "progress": progress,
@@ -299,47 +317,32 @@ pub async fn start_sidecar(
             }));
         }
         
-        {
-            let mut proc_guard = handle.process.lock().await;
-            if let Some(ref mut proc) = *proc_guard {
-                match proc.try_wait() {
-                    Ok(Some(status)) => {
-                        return Err(AppError::Sidecar(format!(
-                            "Sidecar process exited unexpectedly with status: {}",
-                            status
-                        )));
-                    }
-                    Ok(None) => {}
-                    Err(e) => {
-                        return Err(AppError::Sidecar(format!(
-                            "Failed to check sidecar status: {}",
-                            e
-                        )));
-                    }
-                }
-            }
-        }
-        
         if health_check(&handle).await {
             tracing::info!("Sidecar is ready after {} seconds", attempt);
             
-            // Detect stop tokens from model metadata
-            match get_model_props(&handle).await {
-                Ok(props) => {
-                    if let Some(settings) = props.default_generation_settings {
-                        if let Some(stops) = settings.stop {
-                            if !stops.is_empty() {
-                                tracing::info!("Detected model stop tokens: {:?}", stops);
-                                handle.set_stop_tokens(stops).await;
-                            }
-                        }
+            // P1 FIX: Fetch model props and verify context alignment
+            if let Ok(props) = get_model_props(&handle).await {
+                if let Some(n_ctx_train) = props.default_generation_settings.as_ref().and_then(|s| s.n_ctx) {
+                    if context_size > n_ctx_train {
+                        tracing::warn!("Requested context size ({}) exceeds model's training context ({}).", context_size, n_ctx_train);
+                        let _ = app_handle.emit("chat:warning", serde_json::json!({
+                            "message": format!("The selected model was trained for {} tokens, but the app is using {}. You may notice decreased response quality.", n_ctx_train, context_size)
+                        }));
                     }
                 }
-                Err(e) => {
-                    tracing::warn!("Failed to get model props (using defaults): {}", e);
+                
+                // Cache stop tokens
+                if let Some(stop_sequences) = props.default_generation_settings.as_ref().and_then(|s| s.stop.clone()) {
+                    let mut tokens = handle.detected_stop_tokens.lock().await;
+                    *tokens = Some(stop_sequences);
                 }
             }
-            
+
+            let _ = app_handle.emit("model:status", serde_json::json!({
+                "status": "ready",
+                "modelLoaded": true,
+                "message": "AI Engine started successfully."
+            }));
             return Ok(handle);
         }
         
@@ -358,31 +361,67 @@ pub async fn stop_sidecar(handle: SidecarHandle) -> AppResult<()> {
     
     let mut proc_guard = handle.process.lock().await;
     if let Some(mut child) = proc_guard.take() {
-        tracing::info!("Stopping sidecar process...");
+        tracing::info!("Initiating multi-stage sidecar shutdown...");
         
         let client = reqwest::Client::new();
+        
+        // Stage 1: Try POST /quit (1.5s timeout)
+        tracing::debug!("Stage 1: Attempting POST /quit");
         let _ = client
             .post(format!("{}/quit", handle.base_url))
-            .timeout(std::time::Duration::from_secs(2))
+            .timeout(std::time::Duration::from_millis(1500))
             .send()
             .await;
         
-        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-        
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        if let Ok(Some(_)) = child.try_wait() {
+            tracing::info!("Sidecar stopped gracefully via POST /quit");
+            return Ok(());
+        }
+
+        // Stage 2: Try GET /quit (1.5s timeout)
+        tracing::debug!("Stage 2: Attempting GET /quit");
+        let _ = client
+            .get(format!("{}/quit", handle.base_url))
+            .timeout(std::time::Duration::from_millis(1500))
+            .send()
+            .await;
+
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        if let Ok(Some(_)) = child.try_wait() {
+            tracing::info!("Sidecar stopped gracefully via GET /quit");
+            return Ok(());
+        }
+
+        // Stage 3: Windows CTRL+C signal
+        #[cfg(target_os = "windows")]
+        {
+            tracing::debug!("Stage 3: Sending CTRL_C_EVENT to sidecar");
+            if let Some(pid) = child.id() {
+                unsafe {
+                    use winapi::um::wincon::GenerateConsoleCtrlEvent;
+                    use winapi::um::wincon::CTRL_C_EVENT;
+                    // Send to the process group (using pid as group id if created with CREATE_NEW_PROCESS_GROUP)
+                    if GenerateConsoleCtrlEvent(CTRL_C_EVENT, pid) != 0 {
+                        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                    }
+                }
+            }
+        }
+
+        // Wait a bit more for OS to cleanup
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
+        // Final Stage: Force Kill
         match child.try_wait() {
             Ok(Some(_)) => {
-                tracing::info!("Sidecar stopped gracefully");
+                tracing::info!("Sidecar stopped after signals");
             }
-            Ok(None) => {
+            _ => {
                 tracing::warn!("Sidecar didn't stop gracefully, forcing kill");
                 let _ = child.kill().await;
                 let _ = child.wait().await;
                 tracing::info!("Sidecar force killed");
-            }
-            Err(e) => {
-                tracing::error!("Failed to check sidecar status: {}", e);
-                let _ = child.kill().await;
-                let _ = child.wait().await;
             }
         }
     }

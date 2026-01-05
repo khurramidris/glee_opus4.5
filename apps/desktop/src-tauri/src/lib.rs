@@ -164,6 +164,10 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|app_handle, event| {
             match event {
+                tauri::RunEvent::MainEventsCleared => {
+                    // This explicitly handles the Tao event to prevent "MainEventsCleared emitted without explicit..." warnings.
+                    // It can be empty, but must be present.
+                }
                 tauri::RunEvent::ExitRequested { .. } => {
                     tracing::info!("Exit requested, initiating cleanup...");
                     
