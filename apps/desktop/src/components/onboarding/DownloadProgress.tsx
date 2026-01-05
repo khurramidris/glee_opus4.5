@@ -5,18 +5,20 @@ import { Button } from '@/components/ui/Button';
 import { Progress } from '@/components/ui/Progress';
 import { formatBytes, formatSpeed } from '@/lib/format';
 import { getBinaryUrl, getModelUrl } from '@/config/downloads';
+import type { SetupStatus } from '@/hooks/useSmartSetup';
 
 interface DownloadProgressProps {
-  variant: string;
+  status: SetupStatus | null;
   onComplete: () => void;
   onSkip: () => void;
 }
 
-export function DownloadProgress({ variant, onComplete, onSkip }: DownloadProgressProps) {
+export function DownloadProgress({ status, onComplete, onSkip }: DownloadProgressProps) {
   const {
     currentDownload,
     progress,
     isDownloading,
+    isVerifying,
     error,
     startDownload,
     pauseDownload,
@@ -32,32 +34,49 @@ export function DownloadProgress({ variant, onComplete, onSkip }: DownloadProgre
   useEffect(() => {
     if (!downloadInitiated.current) {
       downloadInitiated.current = true;
-      startBinaryDownload();
+
+      if (status?.missing_binary === false) {
+        console.log('[DownloadProgress] Binary already present, skipping to model');
+        startModelDownload();
+      } else {
+        startBinaryDownload();
+      }
     }
   }, []);
 
   const startBinaryDownload = async () => {
     setPhase('binary');
+    const variant = status?.recommended_variant || 'cpu';
     // Use config helper to get the correct URL for the variant
     const validVariant = (variant === 'cuda' || variant === 'rocm' || variant === 'cpu') ? variant : 'cpu';
     const url = getBinaryUrl(validVariant);
-    // Note: The backend needs to know we are downloading a binary to put it in valid bin dir
-    // For now we reuse the startDownload which likely just puts it in default download dir
-    // We might need to extend startDownload input to specify 'target_dir' or 'type'
 
-    // Assuming startDownload works generically for now:
+    console.log('[DownloadProgress] Starting binary download');
+    console.log('[DownloadProgress] Variant received:', variant);
+    console.log('[DownloadProgress] Valid variant used:', validVariant);
+    console.log('[DownloadProgress] Download URL:', url);
+
     try {
       await startDownload({ url, downloadType: 'binary' });
+      console.log('[DownloadProgress] Binary download started successfully');
     } catch (e) {
+      console.error('[DownloadProgress] Binary download failed:', e);
       addToast({ type: 'error', message: `Failed to download engine: ${e}` });
     }
   };
 
   const startModelDownload = async () => {
     setPhase('model');
+    const url = getModelUrl();
+
+    console.log('[DownloadProgress] Starting model download');
+    console.log('[DownloadProgress] Model URL:', url);
+
     try {
-      await startDownload({ url: getModelUrl(), downloadType: 'model' });
+      await startDownload({ url, downloadType: 'model' });
+      console.log('[DownloadProgress] Model download started successfully');
     } catch (e) {
+      console.error('[DownloadProgress] Model download failed:', e);
       addToast({ type: 'error', message: `Failed to download model: ${e}` });
     }
   };
@@ -104,8 +123,8 @@ export function DownloadProgress({ variant, onComplete, onSkip }: DownloadProgre
           </h1>
           <p className="text-white/60">
             {phase === 'binary'
-              ? `Installing optimized AI engine for your ${variant.toUpperCase()}...`
-              : 'Downloading the AI model (approx 2.5GB)...'}
+              ? `Installing optimized AI engine for your ${(status?.recommended_variant || 'CPU').toUpperCase()}...`
+              : 'Downloading the AI model...'}
           </p>
         </div>
 
@@ -148,6 +167,11 @@ export function DownloadProgress({ variant, onComplete, onSkip }: DownloadProgre
               <span className="text-white/60">
                 {phase === 'binary' ? 'Downloading Engine...' : 'Downloading Model...'}
               </span>
+            </>
+          ) : isVerifying ? (
+            <>
+              <div className="w-2 h-2 bg-amber-500 rounded-full animate-spin" />
+              <span className="text-white/60">Verifying Download...</span>
             </>
           ) : currentDownload?.status === 'paused' ? (
             <>

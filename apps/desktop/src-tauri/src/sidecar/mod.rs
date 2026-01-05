@@ -107,8 +107,7 @@ fn find_sidecar_binary(app_handle: &AppHandle, custom_path: Option<&str>) -> App
         .resource_dir()
         .map_err(|e| AppError::Sidecar(format!("Failed to get resource dir: {}", e)))?;
     
-    let possible_paths = vec![
-        std::path::PathBuf::from("D:\\Glee-Opus4.5\\glee\\resources").join(sidecar_name),
+    let mut possible_paths = vec![
         std::path::PathBuf::from("resources").join(sidecar_name),
         resource_dir.join(sidecar_name),
         resource_dir.join("resources").join(sidecar_name),
@@ -123,6 +122,12 @@ fn find_sidecar_binary(app_handle: &AppHandle, custom_path: Option<&str>) -> App
             .unwrap_or_default(),
         std::path::PathBuf::from(sidecar_name),
     ];
+
+    // Add %APPDATA%/bin/llama-server.exe
+    if let Some(state) = app_handle.try_state::<crate::state::AppState>() {
+        let bin_path = state.paths.data_dir.join("bin").join(sidecar_name);
+        possible_paths.insert(0, bin_path);
+    }
     
     for path in possible_paths {
         if path.exists() {
@@ -430,6 +435,7 @@ pub async fn get_model_props(handle: &SidecarHandle) -> AppResult<ModelProps> {
 
 /// Generate text embeddings using the loaded model
 /// This uses llama.cpp's /embedding endpoint
+/// Handles multiple response formats from different llama-server versions
 pub async fn generate_embedding(handle: &SidecarHandle, text: &str) -> AppResult<Vec<f32>> {
     let client = reqwest::Client::new();
     let url = format!("{}/embedding", handle.base_url);
@@ -452,18 +458,76 @@ pub async fn generate_embedding(handle: &SidecarHandle, text: &str) -> AppResult
         return Err(AppError::Llm(format!("Embedding error ({}): {}", status, error_text)));
     }
     
-    #[derive(Deserialize)]
-    struct EmbeddingResponse {
-        embedding: Vec<f32>,
+    // Get response text so we can try multiple parse formats
+    let response_text = response.text().await
+        .map_err(|e| AppError::Llm(format!("Failed to read embedding response: {}", e)))?;
+    
+    // Parse as generic JSON first to handle various formats
+    let json: serde_json::Value = serde_json::from_str(&response_text)
+        .map_err(|e| AppError::Llm(format!("Invalid JSON in embedding response: {}", e)))?;
+    
+    // Format 1: Array at top level: [{"index":0,"embedding":[[...]]}]
+    // This is the actual llama-server format observed in logs
+    if let Some(arr) = json.as_array() {
+        if let Some(first) = arr.first() {
+            if let Some(embedding) = first.get("embedding") {
+                // Handle nested array: "embedding": [[0.1, 0.2, ...]]
+                if let Some(outer_arr) = embedding.as_array() {
+                    if let Some(inner) = outer_arr.first() {
+                        if let Some(inner_arr) = inner.as_array() {
+                            let values: Vec<f32> = inner_arr.iter()
+                                .filter_map(|v| v.as_f64().map(|f| f as f32))
+                                .collect();
+                            if !values.is_empty() {
+                                tracing::debug!("Parsed embedding from array format ({} dimensions)", values.len());
+                                return Ok(values);
+                            }
+                        }
+                    }
+                    // Single array: "embedding": [0.1, 0.2, ...]
+                    let values: Vec<f32> = outer_arr.iter()
+                        .filter_map(|v| v.as_f64().map(|f| f as f32))
+                        .collect();
+                    if !values.is_empty() {
+                        tracing::debug!("Parsed embedding from flat array format ({} dimensions)", values.len());
+                        return Ok(values);
+                    }
+                }
+            }
+        }
     }
     
-    let result: EmbeddingResponse = response
-        .json()
-        .await
-        .map_err(|e| AppError::Llm(format!("Failed to parse embedding response: {}", e)))?;
+    // Format 2: OpenAI-compatible: { "data": [{ "embedding": [...] }] }
+    if let Some(data) = json.get("data").and_then(|d| d.as_array()) {
+        if let Some(first) = data.first() {
+            if let Some(embedding) = first.get("embedding").and_then(|e| e.as_array()) {
+                let values: Vec<f32> = embedding.iter()
+                    .filter_map(|v| v.as_f64().map(|f| f as f32))
+                    .collect();
+                if !values.is_empty() {
+                    tracing::debug!("Parsed embedding from OpenAI format ({} dimensions)", values.len());
+                    return Ok(values);
+                }
+            }
+        }
+    }
     
-    Ok(result.embedding)
+    // Format 3: Legacy: { "embedding": [...] }
+    if let Some(embedding) = json.get("embedding").and_then(|e| e.as_array()) {
+        let values: Vec<f32> = embedding.iter()
+            .filter_map(|v| v.as_f64().map(|f| f as f32))
+            .collect();
+        if !values.is_empty() {
+            tracing::debug!("Parsed embedding from legacy format ({} dimensions)", values.len());
+            return Ok(values);
+        }
+    }
+    
+    // Log the actual response for debugging
+    tracing::error!("Failed to parse embedding response. First 500 chars: {:.500}", response_text);
+    Err(AppError::Llm("Failed to parse embedding response: unknown format".into()))
 }
+
 
 #[derive(Debug, Clone)]
 pub enum GenerationEvent {

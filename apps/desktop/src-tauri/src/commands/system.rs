@@ -1,4 +1,4 @@
-use tauri::{State, Manager};
+use tauri::State;
 use crate::entities::*;
 use crate::error::AppError;
 use crate::sidecar;
@@ -95,71 +95,9 @@ pub async fn start_sidecar(
     
     // Check if model exists
     if !model_path.exists() {
-        tracing::warn!("Model not found at: {:?}, searching for alternatives...", model_path);
-        
-        // Try to find any .gguf file in user's models directory first
-        let models_dir = &state.paths.models_dir;
-        let mut found_model = None;
-        
-        tracing::info!("Searching in models_dir: {:?}", models_dir);
-        
-        if models_dir.exists() {
-            if let Ok(entries) = std::fs::read_dir(models_dir) {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    tracing::debug!("Found file: {:?}", path);
-                    if path.extension().map(|e| e == "gguf").unwrap_or(false) {
-                        tracing::info!("Found .gguf model: {:?}", path);
-                        found_model = Some(path);
-                        break;
-                    }
-                }
-            }
-        } else {
-            tracing::warn!("models_dir does not exist: {:?}", models_dir);
-        }
-        
-        // If not found in user directory, check bundled resources
-        if found_model.is_none() {
-            if let Ok(resource_dir) = app_handle.path().resource_dir() {
-                tracing::info!("Checking resource_dir: {:?}", resource_dir);
-                // Check for bundled model in resources/models/
-                let bundled_model = resource_dir.join("models").join("model.gguf");
-                if bundled_model.exists() {
-                    tracing::info!("Found bundled model: {:?}", bundled_model);
-                    found_model = Some(bundled_model);
-                } else {
-                    // Also check directly in resources/
-                    let alt_path = resource_dir.join("model.gguf");
-                    if alt_path.exists() {
-                        tracing::info!("Found bundled model at root: {:?}", alt_path);
-                        found_model = Some(alt_path);
-                    }
-                }
-            }
-        }
-        
-        if let Some(found) = found_model {
-            tracing::info!("Using model file: {:?}", found);
-            let _ = SettingsService::set(&state.db, "model.path", &found.to_string_lossy());
-            
-            let handle = sidecar::start_sidecar(
-                &app_handle,
-                &found,
-                settings.model.gpu_layers,
-                settings.generation.context_size,
-                settings.model.sidecar_path.as_deref(),
-            ).await?;
-            
-            state.set_sidecar(Some(handle));
-            tracing::info!("Sidecar started successfully with found model");
-            return Ok(());
-        }
-        
-        tracing::error!("No model file found anywhere");
+        tracing::error!("Model not found at: {:?}", model_path);
         return Err(AppError::NotFound(format!(
-            "No model file found. Please place a .gguf model in: {}",
-            state.paths.models_dir.display()
+            "Model file not found. Please place a .gguf model in the models folder or select one in Settings."
         )));
     }
     

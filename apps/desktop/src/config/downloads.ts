@@ -13,7 +13,7 @@ export const DOWNLOAD_CONFIG = {
     },
 
     // Default model path
-    model: "/models/tiny-llm.gguf",
+    model: "/models/model.gguf",
 
     // Version for future compatibility checks
     version: "1.0.0",

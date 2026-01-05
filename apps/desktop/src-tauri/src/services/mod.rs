@@ -721,8 +721,28 @@ impl MemoryService {
         };
         system_parts.push(char_header);
         
-        if !character.tags.is_empty() {
-            system_parts.push(format!("Tags: {}", character.tags.join(", ")));
+        // Tags (genre/theme hints) - combine custom tags with genre tags
+        let mut all_tags = character.tags.clone();
+        all_tags.extend(character.genre_tags.clone());
+        
+        if !all_tags.is_empty() {
+            system_parts.push(format!("Tags: {}", all_tags.join(", ")));
+        }
+        
+        // Add rating and POV context if specified
+        if character.rating != "sfw" {
+            system_parts.push(format!("Content Rating: {}", character.rating.to_uppercase()));
+        }
+        if character.pov_type != "any" {
+            let pov_desc = match character.pov_type.as_str() {
+                "first" => "Write in first person (I/me)",
+                "second" => "Write in second person (you/your)",
+                "third" => "Write in third person (he/she/they)",
+                _ => ""
+            };
+            if !pov_desc.is_empty() {
+                system_parts.push(format!("POV: {}", pov_desc));
+            }
         }
         
         // ====== SECTION 2: PERSONALITY ======
@@ -853,8 +873,8 @@ impl MemoryService {
         
         // ====== FINAL INSTRUCTION (matches model training) ======
         let final_instruction = format!(
-            "Take the role of {}. Taking the above information into consideration, you must engage in a roleplay conversation with {{{{user}}}} below this line. Do not write {{{{user}}}}'s dialogue lines in your responses. Respond from {}'s perspective, fully embodying their personality. Never repeat your previous responses - each message must be unique and advance the story.",
-            character.name, character.name
+            "You are {}. Take the role of {} and ONLY {}. Taking the above information into consideration, you must engage in a roleplay conversation with {{{{user}}}} below this line. IMPORTANT: Do not write {{{{user}}}}'s dialogue, actions, thoughts, or feelings. Only write {}'s perspective using third person for actions (e.g., '*she sighs*', '*{} rolls her eyes*'). Never repeat your previous responses - each message must be unique and advance the story. Remember: You are {} - do not use any other name.",
+            character.name, character.name, character.name, character.name, character.name, character.name
         );
         system_parts.push(final_instruction);
 
@@ -952,8 +972,28 @@ impl MemoryService {
         system_parts.push(char_header);
         
         // Tags (genre/theme hints) - exactly as model expects
-        if !character.tags.is_empty() {
-            system_parts.push(format!("Tags: {}", character.tags.join(", ")));
+        // Combine custom tags with genre tags
+        let mut all_tags = character.tags.clone();
+        all_tags.extend(character.genre_tags.clone());
+        
+        if !all_tags.is_empty() {
+            system_parts.push(format!("Tags: {}", all_tags.join(", ")));
+        }
+        
+        // Add rating and POV context if specified
+        if character.rating != "sfw" {
+            system_parts.push(format!("Content Rating: {}", character.rating.to_uppercase()));
+        }
+        if character.pov_type != "any" {
+            let pov_desc = match character.pov_type.as_str() {
+                "first" => "Write in first person (I/me)",
+                "second" => "Write in second person (you/your)",
+                "third" => "Write in third person (he/she/they)",
+                _ => ""
+            };
+            if !pov_desc.is_empty() {
+                system_parts.push(format!("POV: {}", pov_desc));
+            }
         }
         
         // ====== SECTION 2: PERSONALITY ======
@@ -1101,8 +1141,8 @@ impl MemoryService {
         // ====== FINAL INSTRUCTION ======
         // This is CRITICAL - matches the model's trained format exactly
         let final_instruction = format!(
-            "Take the role of {}. Taking the above information into consideration, you must engage in a roleplay conversation with {{{{user}}}} below this line. Do not write {{{{user}}}}'s dialogue lines in your responses. Respond from {}'s perspective, fully embodying their personality. Never repeat your previous responses - each message must be unique and advance the story.",
-            character.name, character.name
+            "You are {}. Take the role of {} and ONLY {}. Taking the above information into consideration, you must engage in a roleplay conversation with {{{{user}}}} below this line. IMPORTANT: Do not write {{{{user}}}}'s dialogue, actions, thoughts, or feelings. Only write {}'s perspective using third person for actions (e.g., '*she sighs*', '*{} rolls her eyes*'). Never repeat your previous responses - each message must be unique and advance the story. Remember: You are {} - do not use any other name.",
+            character.name, character.name, character.name, character.name, character.name, character.name
         );
         system_parts.push(final_instruction);
 

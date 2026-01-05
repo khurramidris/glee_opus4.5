@@ -19,6 +19,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { useCharacterStore } from '@/stores/characterStore';
 import { usePersonaStore } from '@/stores/personaStore';
 import { useConversationStore } from '@/stores/conversationStore';
+import { useSmartSetup } from '@/hooks/useSmartSetup';
 
 interface ToastItem {
   id: string;
@@ -40,10 +41,12 @@ export default function App() {
   const addToast = useUIStore((s) => s.addToast);
   const toasts = useUIStore((s) => s.toasts) as ToastItem[];
   const autoStartAttempted = useRef(false);
+  const { checkStatus } = useSmartSetup();
 
   const [loadingPhase, setLoadingPhase] = useState<'init' | 'settings' | 'data' | 'model' | 'ready'>('init');
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [needsOnboarding, setNeedsOnboarding] = useState<boolean | null>(null);
 
   useEffect(() => {
     // Show window quickly to reveal the splash screen
@@ -68,6 +71,29 @@ export default function App() {
         await fetchSettings();
         setLoadingProgress(30);
 
+        const refreshSetup = async () => {
+          try {
+            const setupStatus = await checkStatus();
+            console.log('[App] Refreshing Setup status:', setupStatus);
+            if (!setupStatus) {
+              setNeedsOnboarding(true);
+              return false;
+            } else {
+              const needsSetup = !setupStatus.is_complete || setupStatus.missing_binary || setupStatus.missing_model;
+              setNeedsOnboarding(needsSetup);
+              return !needsSetup;
+            }
+          } catch (e) {
+            console.error('Failed to refresh setup status:', e);
+            setNeedsOnboarding(true);
+            return false;
+          }
+        };
+
+        // Check if setup is complete (binary + model exist)
+        setLoadingProgress(35);
+        await refreshSetup();
+
         setLoadingPhase('data');
         setLoadingProgress(40);
         await Promise.all([
@@ -87,7 +113,18 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (settings && !settings.app.firstRun && !autoStartAttempted.current) {
+    // Wait until we know if onboarding is needed
+    if (needsOnboarding === null) return;
+
+    // If onboarding is needed, skip sidecar startup
+    if (needsOnboarding || (settings && settings.app.firstRun)) {
+      setLoadingProgress(100);
+      setLoadingPhase('ready');
+      return;
+    }
+
+    // Only auto-start sidecar if setup is complete
+    if (settings && !autoStartAttempted.current) {
       autoStartAttempted.current = true;
       setLoadingPhase('model');
       setLoadingProgress(80);
@@ -102,11 +139,8 @@ export default function App() {
           setLoadingProgress(100);
           setTimeout(() => setLoadingPhase('ready'), 300);
         });
-    } else if (settings && settings.app.firstRun) {
-      setLoadingProgress(100);
-      setLoadingPhase('ready');
     }
-  }, [settings, startSidecar]);
+  }, [settings, startSidecar, needsOnboarding]);
 
   // Window is shown on mount in the first useEffect
 
@@ -121,14 +155,28 @@ export default function App() {
     }
   };
 
-  if (!settings || (loadingPhase !== 'ready' && !settings.app.firstRun)) {
+  // Still loading
+  if (!settings || needsOnboarding === null || (loadingPhase !== 'ready' && !needsOnboarding)) {
     return <SplashScreen status={getLoadingStatus()} progress={loadingProgress} />;
   }
 
-  if (settings.app.firstRun) {
+  // Show onboarding if firstRun OR if setup is incomplete (binary/model missing)
+  if (settings.app.firstRun || needsOnboarding) {
     return (
       <ErrorBoundary>
-        <WelcomeScreen />
+        <WelcomeScreen onComplete={() => {
+          console.log('[App] Onboarding marked complete, refreshing status...');
+          // Give a small delay for DB to persist if needed
+          setTimeout(() => {
+            checkStatus().then(status => {
+              if (status) {
+                const stillNeeds = !status.is_complete || status.missing_binary || status.missing_model;
+                console.log('[App] Status after onboarding:', status, 'stillNeeds:', stillNeeds);
+                setNeedsOnboarding(stillNeeds);
+              }
+            });
+          }, 500);
+        }} />
         <ToastContainer toasts={toasts} />
       </ErrorBoundary>
     );

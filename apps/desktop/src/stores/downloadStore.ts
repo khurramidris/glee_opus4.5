@@ -14,11 +14,12 @@ interface DownloadState {
   isDownloading: boolean;
   isVerifying: boolean;
   error: string | null;
-  
+
   startDownload: (input: StartDownloadInput) => Promise<Download>;
   pauseDownload: () => Promise<void>;
   resumeDownload: () => Promise<void>;
   cancelDownload: () => Promise<void>;
+  updateStatus: (status: Download['status']) => void;
   updateProgress: (downloadedBytes: number, totalBytes: number, speedBps: number) => void;
   setComplete: () => void;
   setVerifying: () => void;
@@ -34,10 +35,13 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
   error: null,
 
   startDownload: async (input) => {
+    console.log('[DownloadStore] startDownload called with:', input);
     set({ isDownloading: true, isVerifying: false, error: null });
     try {
+      console.log('[DownloadStore] Calling backend startModelDownload...');
       const download = await commands.startModelDownload(input);
-      set({ 
+      console.log('[DownloadStore] Backend returned download:', download);
+      set({
         currentDownload: download,
         progress: {
           downloadedBytes: 0,
@@ -47,6 +51,7 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
       });
       return download;
     } catch (e) {
+      console.error('[DownloadStore] startDownload failed:', e);
       set({ isDownloading: false, error: String(e) });
       throw e;
     }
@@ -86,6 +91,15 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
         set({ error: String(e) });
       }
     }
+  },
+
+  updateStatus: (status) => {
+    set((state) => ({
+      currentDownload: state.currentDownload
+        ? { ...state.currentDownload, status }
+        : null,
+      isDownloading: status === 'downloading',
+    }));
   },
 
   updateProgress: (downloadedBytes, totalBytes, speedBps) => {

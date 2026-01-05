@@ -221,9 +221,18 @@ async fn process_queue(state: &AppState, app_handle: &AppHandle) {
     
     match generation_result {
         Ok(full_content) => {
+            // Replace placeholders in response with actual names
+            let processed_content = full_content
+                .replace("{{user}}", &context.persona_name)
+                .replace("{{User}}", &context.persona_name)
+                .replace("{{char}}", &context.character_name)
+                .replace("{{Char}}", &context.character_name)
+                .replace("<user>", &context.persona_name)
+                .replace("<char>", &context.character_name);
+            
             // Update message with full content
-            let token_count = estimate_tokens(&full_content);
-            if let Err(e) = MessageRepo::update_content(&state.db, &message_id, &full_content, token_count) {
+            let token_count = estimate_tokens(&processed_content);
+            if let Err(e) = MessageRepo::update_content(&state.db, &message_id, &processed_content, token_count) {
                 tracing::error!("Failed to update message: {}", e);
             }
             
@@ -339,29 +348,20 @@ struct TokenFilter {
     buffer: String,
     in_thinking_block: bool,
     in_response_block: bool,
-    character_name: String,
     // Track previous messages to detect repetition
     previous_messages: Vec<String>,
+    // Track if we've seen any tags at all
+    seen_any_tag: bool,
 }
 
 impl TokenFilter {
-    fn new(character_name: &str) -> Self {
+    fn with_history(_character_name: &str, history: Vec<String>) -> Self {
         Self {
             buffer: String::new(),
             in_thinking_block: false, 
             in_response_block: false,
-            character_name: character_name.to_string(),
-            previous_messages: Vec::new(),
-        }
-    }
-    
-    fn with_history(character_name: &str, history: Vec<String>) -> Self {
-        Self {
-            buffer: String::new(),
-            in_thinking_block: false, 
-            in_response_block: false,
-            character_name: character_name.to_string(),
             previous_messages: history,
+            seen_any_tag: false,
         }
     }
     
@@ -393,6 +393,31 @@ impl TokenFilter {
         
         result
     }
+    
+    /// Clean any leftover tags from content (safety net)
+    fn clean_tags(content: &str) -> String {
+        let mut result = content.to_string();
+        
+        // Remove thinking blocks entirely (in case they slipped through)
+        while let Some(start) = result.find("<thinking>") {
+            if let Some(end) = result.find("</thinking>") {
+                let end_pos = end + 11;
+                result = format!("{}{}", &result[..start], &result[end_pos..]);
+            } else {
+                // No closing tag, remove from <thinking> to end
+                result = result[..start].to_string();
+                break;
+            }
+        }
+        
+        // Remove standalone tags
+        result = result.replace("<RESPONSE>", "");
+        result = result.replace("</RESPONSE>", "");
+        result = result.replace("<thinking>", "");
+        result = result.replace("</thinking>", "");
+        
+        result.trim().to_string()
+    }
 
     fn process(&mut self, token: &str) -> Vec<String> {
         self.buffer.push_str(token);
@@ -404,7 +429,10 @@ impl TokenFilter {
             loop_count += 1;
             if loop_count > 1000 {
                 tracing::error!("TokenFilter loop limit exceeded. Flushing.");
-                output.push(self.buffer.clone());
+                let cleaned = Self::clean_tags(&self.buffer);
+                if !cleaned.is_empty() {
+                    output.push(cleaned);
+                }
                 self.buffer.clear();
                 break;
             }
@@ -413,102 +441,79 @@ impl TokenFilter {
                 break;
             }
 
-            // --- STRICT MODE & PREAMBLE CLEANING ---
-            // If we haven't started responding yet, look for leakage/preamble
-            if !self.in_thinking_block && !self.in_response_block {
-                let leakage_markers = [
-                    "Scenario:".to_string(),
-                    "System:".to_string(),
-                    format!("You are {}", self.character_name),
-                    format!("{}:", self.character_name),
-                ];
-
-                let mut found_leakage = false;
-                for marker in &leakage_markers {
-                    if self.buffer.trim_start().starts_with(marker) {
-                        found_leakage = true;
-                        break;
+            // Check for thinking block start
+            if let Some(think_start) = self.buffer.find("<thinking>") {
+                // Found thinking start - discard everything before and enter thinking mode
+                self.seen_any_tag = true;
+                if think_start > 0 {
+                    // There's content before <thinking> - if we're in response mode, emit it
+                    if self.in_response_block {
+                        let before = self.buffer[..think_start].to_string();
+                        if !before.trim().is_empty() {
+                            output.push(before);
+                        }
                     }
                 }
+                self.buffer = self.buffer[think_start + 10..].to_string();
+                self.in_thinking_block = true;
+                self.in_response_block = false;
+                continue;
+            }
 
-                if found_leakage {
-                    // We found leakage. We need to find the REAL start of the current response.
-                    // Important: The model might repeat the WHOLE history. We want the LAST occurrence 
-                    // of "[CharName]: " because that usually marks the start of the NEW message.
-                    let char_dialogue = format!("{}: ", self.character_name);
-                    let char_action = format!("{}: *", self.character_name);
+            // If in thinking block, look for end
+            if self.in_thinking_block {
+                if let Some(think_end) = self.buffer.find("</thinking>") {
+                    // Found end of thinking - discard thinking content
+                    tracing::debug!("Discarding thinking block content");
+                    self.buffer = self.buffer[think_end + 11..].to_string();
+                    self.in_thinking_block = false;
+                    continue;
+                } else {
+                    // Still in thinking block, wait for more tokens
+                    // But avoid unbounded growth
+                    if self.buffer.len() > 5000 {
+                        tracing::warn!("Thinking block exceeded 5000 chars, discarding");
+                        self.buffer.clear();
+                    }
+                    break;
+                }
+            }
 
-                    // Find the LAST occurrence to avoid latching onto echoed history
-                    let pos_dialogue = self.buffer.rfind(&char_dialogue);
-                    let pos_action = self.buffer.rfind(&char_action);
+            // Check for response block start
+            if let Some(resp_start) = self.buffer.find("<RESPONSE>") {
+                self.seen_any_tag = true;
+                // Discard everything before <RESPONSE>
+                if resp_start > 0 {
+                    tracing::debug!("Discarding {} chars before <RESPONSE>", resp_start);
+                }
+                self.buffer = self.buffer[resp_start + 10..].to_string();
+                self.in_response_block = true;
+                continue;
+            }
 
-                    match (pos_dialogue, pos_action) {
-                        (Some(d_pos), Some(a_pos)) => {
-                            let pos = d_pos.max(a_pos);
-                            let marker_len = if d_pos >= a_pos { char_dialogue.len() } else { char_action.len() };
-                            
-                            // Only strip if we have enough buffer after the marker to be sure it's the start
-                            // or if the buffer is getting too large.
-                            if self.buffer.len() > pos + marker_len + 5 || self.buffer.len() > 500 {
-                                tracing::warn!("Detected system prompt leakage. Stripping up to last '{}' marker.", self.character_name);
-                                self.buffer = self.buffer[pos + marker_len..].to_string();
-                                self.in_response_block = true;
-                                continue;
-                            }
-                        }
-                        (Some(pos), None) | (None, Some(pos)) => {
-                            let marker_len = if pos_dialogue.is_some() { char_dialogue.len() } else { char_action.len() };
-                            if self.buffer.len() > pos + marker_len + 5 || self.buffer.len() > 500 {
-                                tracing::warn!("Detected system prompt leakage. Stripping up to '{}' marker.", self.character_name);
-                                self.buffer = self.buffer[pos + marker_len..].to_string();
-                                self.in_response_block = true;
-                                continue;
-                            }
-                        }
-                        (None, None) => {
-                            // Leakage detected but start marker not found yet.
-                            // If buffer is huge, just clear it to prevent memory issues.
-                            if self.buffer.len() > 1000 {
-                                tracing::warn!("Leakage buffer exceeded 1000 chars without start marker. Clearing.");
-                                self.buffer.clear();
+            // Check for response block end
+            if self.in_response_block {
+                if let Some(resp_end) = self.buffer.find("</RESPONSE>") {
+                    // Emit content before </RESPONSE>
+                    let content = self.buffer[..resp_end].to_string();
+                    if !content.is_empty() {
+                        output.push(content);
+                    }
+                    self.buffer = self.buffer[resp_end + 11..].to_string();
+                    self.in_response_block = false;
+                    continue;
+                } else {
+                    // We're in response mode - emit content but keep potential partial tags
+                    let potential_tags = ["</RESPONSE>", "<thinking>", "</thinking>"];
+                    let mut keep_len = 0;
+                    for tag in potential_tags {
+                        for i in (1..tag.len()).rev() {
+                            if self.buffer.ends_with(&tag[..i]) {
+                                keep_len = keep_len.max(i);
                             }
                         }
                     }
                     
-                    if found_leakage && !self.in_response_block {
-                        // Wait for more tokens to find the start marker
-                        break;
-                    }
-                }
-            }
-
-            // Standard tag processing
-            let think_idx = self.buffer.find("<thinking>");
-            let response_idx = self.buffer.find("<RESPONSE>");
-
-            if self.in_thinking_block {
-                if let Some(end_idx) = self.buffer.find("</thinking>") {
-                    self.buffer = self.buffer[end_idx + 11..].to_string();
-                    self.in_thinking_block = false;
-                    continue;
-                } else {
-                    let potential_tag = "</thinking>";
-                    let keep_len = self.get_partial_tag_len(potential_tag);
-                    if self.buffer.len() > keep_len {
-                        self.buffer = self.buffer[self.buffer.len() - keep_len..].to_string();
-                    }
-                    break;
-                }
-            } else if self.in_response_block {
-                if let Some(end_idx) = self.buffer.find("</RESPONSE>") {
-                    let content = self.buffer[..end_idx].to_string();
-                    if !content.is_empty() { output.push(content); }
-                    self.buffer = self.buffer[end_idx + 11..].to_string();
-                    self.in_response_block = false;
-                    continue;
-                } else {
-                    let potential_tag = "</RESPONSE>";
-                    let keep_len = self.get_partial_tag_len(potential_tag);
                     let emit_len = self.buffer.len().saturating_sub(keep_len);
                     if emit_len > 0 {
                         let content = self.buffer[..emit_len].to_string();
@@ -517,121 +522,73 @@ impl TokenFilter {
                     }
                     break;
                 }
-            } else {
-                // If we see </thinking> even if NOT in thinking block,
-                // it means we missed the start tag. Discard everything before it.
-                if let Some(end_idx) = self.buffer.find("</thinking>") {
-                     tracing::warn!("Found </thinking> without <thinking> tag. Stripping thought process prefix.");
-                     self.buffer = self.buffer[end_idx + 11..].to_string();
-                     // Don't continue, check other tags in the remaining buffer
-                }
-
-                match (think_idx, response_idx) {
-                    (Some(t_idx), Some(r_idx)) => {
-                        if t_idx < r_idx { self.handle_thinking_start(t_idx); }
-                        else { self.handle_response_start(r_idx); }
-                        continue;
-                    }
-                    (Some(t_idx), None) => {
-                        self.handle_thinking_start(t_idx);
-                        continue;
-                    }
-                    (None, Some(r_idx)) => {
-                        self.handle_response_start(r_idx);
-                        continue;
-                    }
-                    (None, None) => {
-                        if self.has_partial_tag() {
-                            break;
-                        } else {
-                            // If we have a significant amount of text and NO leakage and NO tags,
-                            // it might be a model that doesn't use tags.
-                            // BUT wait, we should only do this if we haven't seen leakage.
-                            if self.buffer.len() > 100 {
-                                // Implicit response start
-                                self.in_response_block = true;
-                                continue;
-                            }
-                            break;
-                        }
-                    }
-                }
             }
+
+            // Not in any block yet - check for partial tags
+            let partial_tags = ["<thinking>", "<RESPONSE>"];
+            let mut has_partial = false;
+            for tag in partial_tags {
+                for i in (1..tag.len()).rev() {
+                    if self.buffer.ends_with(&tag[..i]) {
+                        has_partial = true;
+                        break;
+                    }
+                }
+                if has_partial { break; }
+            }
+            
+            if has_partial {
+                // Wait for more tokens
+                break;
+            }
+            
+            // No partial tags. If buffer is getting large and we haven't seen any tags,
+            // the model might not be using our tag format. Wait longer to be sure.
+            if self.buffer.len() > 500 && !self.seen_any_tag {
+                // Model isn't using tags - emit as-is but clean just in case
+                tracing::warn!("Buffer exceeded 500 chars with no tags detected. Entering fallback mode.");
+                self.in_response_block = true;
+                continue;
+            }
+            
+            // Buffer is small, wait for more
+            break;
         }
         output
-    }
-
-    fn get_partial_tag_len(&self, tag: &str) -> usize {
-        for i in (1..tag.len()).rev() {
-            if self.buffer.ends_with(&tag[..i]) {
-                return i;
-            }
-        }
-        0
-    }
-    
-    fn handle_thinking_start(&mut self, start_idx: usize) {
-        // Discard everything before <thinking>
-        if start_idx > 0 {
-             tracing::trace!("Discarding pre-thought content: {:?}", &self.buffer[..start_idx]);
-        }
-        self.buffer = self.buffer[start_idx + 10..].to_string();
-        self.in_thinking_block = true;
-    }
-    
-    fn handle_response_start(&mut self, start_idx: usize) {
-        // Discard everything before <RESPONSE>
-        if start_idx > 0 {
-             tracing::trace!("Discarding pre-response content: {:?}", &self.buffer[..start_idx]);
-        }
-        self.buffer = self.buffer[start_idx + 10..].to_string();
-        self.in_response_block = true;
-    }
-
-    fn has_partial_tag(&self) -> bool {
-        let tags = ["<thinking>", "<RESPONSE>"];
-        for tag in tags {
-            for i in (1..tag.len()).rev() {
-                if self.buffer.ends_with(&tag[..i]) {
-                    return true;
-                }
-            }
-        }
-        false
     }
     
     fn flush(&mut self) -> Option<String> {
         // If we are left with content in the buffer...
         
         if self.in_thinking_block {
-             tracing::warn!("Stream ended inside thinking block.");
+             tracing::warn!("Stream ended inside thinking block. Discarding remaining buffer.");
+             self.buffer.clear();
              return None;
         }
         
-        if self.in_response_block {
-            // responding ended without closing tag?
-            tracing::warn!("Stream ended inside response block (missing </RESPONSE>). Emitting rest.");
+        if self.in_response_block || !self.buffer.is_empty() {
+            // Emit whatever is left, cleaned 
             let content = self.buffer.clone();
             self.buffer.clear();
+            
             if content.is_empty() { 
                 return None; 
-            } else {
-                // Check for repetition before returning
-                let cleaned = self.strip_repeated_content(&content);
-                return if cleaned.is_empty() { None } else { Some(cleaned) };
             }
-        }
-        
-        // If we are in neutral mode and have buffer...
-        if !self.buffer.is_empty() {
-            // We never found a tag. This is the "Fallback" scenario where model forgot tags entirely.
-            // We should assume the whole buffer was the response.
-            tracing::warn!("Stream ended without ANY tags. Emitting full buffer as fallback.");
-            let content = self.buffer.clone();
-            self.buffer.clear();
+            
+            // Clean any stray tags
+            let cleaned = Self::clean_tags(&content);
+            if cleaned.is_empty() {
+                return None;
+            }
+            
             // Check for repetition before returning
-            let cleaned = self.strip_repeated_content(&content);
-            return if cleaned.is_empty() { None } else { Some(cleaned) };
+            let final_content = self.strip_repeated_content(&cleaned);
+            if final_content.is_empty() {
+                return None;
+            }
+            
+            tracing::info!("Flushing final content: {} chars", final_content.len());
+            return Some(final_content);
         }
         
         None

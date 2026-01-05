@@ -7,13 +7,27 @@ import { Button } from '@/components/ui/Button';
 
 type OnboardingStep = 'analyzing' | 'welcome' | 'download' | 'complete';
 
-export function WelcomeScreen() {
+interface WelcomeScreenProps {
+  onComplete?: () => void;
+}
+
+export function WelcomeScreen({ onComplete }: WelcomeScreenProps) {
   const [step, setStep] = useState<OnboardingStep>('analyzing');
   const { setFirstRunComplete } = useSettingsStore();
   const { status, checkStatus, loading } = useSmartSetup();
 
   useEffect(() => {
-    checkStatus().then(() => setStep('welcome'));
+    console.log('[WelcomeScreen] Starting setup status check...');
+    checkStatus()
+      .then((result) => {
+        console.log('[WelcomeScreen] Setup status result:', result);
+        setStep('welcome');
+      })
+      .catch((err) => {
+        console.error('[WelcomeScreen] Setup status check failed:', err);
+        // Still proceed to welcome - will use 'cpu' variant as fallback
+        setStep('welcome');
+      });
   }, [checkStatus]);
 
   const handleStartDownload = () => {
@@ -30,6 +44,9 @@ export function WelcomeScreen() {
 
   const handleComplete = async () => {
     await setFirstRunComplete();
+    if (onComplete) {
+      onComplete();
+    }
   };
 
   if (step === 'analyzing' || loading) {
@@ -47,7 +64,7 @@ export function WelcomeScreen() {
   if (step === 'download') {
     return (
       <DownloadProgress
-        variant={status?.recommended_variant || 'cpu'}
+        status={status}
         onComplete={handleDownloadComplete}
         onSkip={handleSkipDownload}
       />
@@ -114,7 +131,7 @@ export function WelcomeScreen() {
             Install & Get Started
           </Button>
           <p className="text-xs text-white/40">
-            ~2.5GB download • One-time setup • Works offline after
+            One-time setup • Works offline after
           </p>
           <button
             onClick={handleSkipDownload}

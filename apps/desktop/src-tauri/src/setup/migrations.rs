@@ -69,5 +69,30 @@ pub fn run_migrations(db: &Database) -> AppResult<()> {
         })?;
     }
     
+    // Safety check: ensure embeddings table exists (handles corrupted/incomplete migrations)
+    let embeddings_exists: bool = db.query_one(
+        "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='embeddings'",
+        [],
+        |row| row.get(0),
+    ).unwrap_or(false);
+    
+    if !embeddings_exists {
+        tracing::warn!("Embeddings table missing despite migration status - creating now");
+        db.execute_batch(
+            "CREATE TABLE IF NOT EXISTS embeddings (
+                id TEXT PRIMARY KEY,
+                entity_type TEXT NOT NULL,
+                entity_id TEXT NOT NULL,
+                embedding BLOB NOT NULL,
+                dimensions INTEGER NOT NULL,
+                created_at INTEGER NOT NULL,
+                UNIQUE(entity_type, entity_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_embeddings_entity ON embeddings(entity_type, entity_id);
+            CREATE INDEX IF NOT EXISTS idx_embeddings_type ON embeddings(entity_type);"
+        )?;
+        tracing::info!("Embeddings table created successfully");
+    }
+    
     Ok(())
 }
